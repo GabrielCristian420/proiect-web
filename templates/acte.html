@@ -1,0 +1,154 @@
+{% extends "layout.html" %}
+{% block main %}
+
+<div class="section-header section-header-lg">
+    <div>
+        <a href="/tenants" class="back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="15 18 9 12 15 6"/></svg>
+            Inapoi la Chiriasi
+        </a>
+        <div class="section-title">Acte — {{ tenant.first_name }} {{ tenant.last_name }}</div>
+        <div class="page-subtitle">Unitate {{ tenant.number }}</div>
+    </div>
+    <div class="pill">{{ docs|length }} document{{ 'e' if docs|length != 1 }}</div>
+</div>
+
+<div class="split-layout">
+
+    <div class="form-card">
+        <h2>Incarca Act Nou</h2>
+        <p class="sub">Adauga un document pentru acest chirias.</p>
+        <hr class="form-divider">
+
+        <form action="/acte/upload/{{ tenant.id }}" method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label class="form-label">Tip Document *</label>
+                <div class="select-wrap">
+                    <select class="form-select" name="doc_type" required>
+                        <option value="" disabled selected>Selecteaza tipul</option>
+                        <option value="Contract inchiriere">Contract inchiriere</option>
+                        <option value="Copie buletin">Copie buletin</option>
+                        <option value="Act aditional">Act aditional</option>
+                        <option value="Proces verbal">Proces verbal predare-primire</option>
+                        <option value="Chitanta">Chitanta plata</option>
+                        <option value="Altele">Altele</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Fisier *</label>
+                <div class="file-drop" id="fileDrop">
+                    <input type="file" name="file" id="fileInput" required
+                           accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                           class="file-input-hidden"
+                           onchange="updateFileName(this)">
+                    <label for="fileInput" class="file-drop-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32" class="file-drop-icon">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <span id="fileLabel" class="file-drop-text">Click pentru a selecta fisierul</span>
+                        <span class="file-drop-hint">PDF, JPG, PNG, DOC, DOCX — max 10MB</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Observatii</label>
+                <input class="form-control" name="notes" placeholder="ex: Contract valabil pana in 2029">
+            </div>
+
+            <hr class="form-divider">
+            <button type="submit" class="btn btn-gold btn-full">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                Incarca Document
+            </button>
+        </form>
+    </div>
+
+    <div class="table-card">
+        <div class="tc-header">
+            <div class="tc-title">Documente Incarcate</div>
+            <div class="pill">{{ docs|length }} total</div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Tip</th>
+                    <th>Fisier</th>
+                    <th>Observatii</th>
+                    <th>Data</th>
+                    <th>Actiuni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in docs %}
+                <tr>
+                    <td>
+                        <div class="flex-row">
+                            {% set ext = doc.original_name.rsplit('.', 1)[-1].lower() %}
+                            {% if ext == 'pdf' %}
+                                <span class="filetype-pdf">PDF</span>
+                            {% elif ext in ['jpg','jpeg','png'] %}
+                                <span class="filetype-img">IMG</span>
+                            {% else %}
+                                <span class="filetype-doc">DOC</span>
+                            {% endif %}
+                            <span class="td-em">{{ doc.doc_type }}</span>
+                        </div>
+                    </td>
+                    <td class="td-truncate">{{ doc.original_name }}</td>
+                    <td class="td-muted">{{ doc.notes or '—' }}</td>
+                    <td class="td-date">{{ doc.uploaded_at }}</td>
+                    <td>
+                        <div class="flex-actions">
+                            <a href="/acte/download/{{ doc.id }}" class="btn btn-ghost btn-sm">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Descarca
+                            </a>
+                            <form class="form-inline" action="/acte/delete/{{ doc.id }}" method="post"
+                                  onsubmit="return confirm('Stergi documentul {{ doc.original_name }}?')">
+                                <button type="submit" class="btn-icon-only" title="Sterge">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                        <polyline points="3 6 5 6 21 6"/>
+                                        <path d="M19 6l-1 14H6L5 6"/>
+                                        <path d="M10 11v6M14 11v6"/>
+                                        <path d="M9 6V4h6v2"/>
+                                    </svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr class="empty-row">
+                    <td colspan="5">Niciun document incarcat inca.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+function updateFileName(input) {
+    const label = document.getElementById('fileLabel');
+    if (input.files && input.files[0]) {
+        label.textContent = input.files[0].name;
+        label.classList.add('file-drop-text-active');
+    }
+}
+</script>
+
+{% endblock %}

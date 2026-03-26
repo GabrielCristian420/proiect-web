@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="/static/styles.css" rel="stylesheet">
+    <title>Login — RentManager</title>
+</head>
+<body>
+<div class="login-shell">
+    <div class="login-card">
+        <div class="login-logo">
+            <div class="login-logo-icon">RM</div>
+            <div>
+                <div class="login-brand-name">RentManager</div>
+            </div>
+        </div>
+
+        <div class="login-title">Bun venit inapoi</div>
+        <div class="login-sub">Autentifica-te pentru a accesa dashboard-ul.</div>
+
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for msg in messages %}
+              {% set parts = msg.split('|') %}
+              {% if parts[0] == 'success' %}
+                <div class="flash-success login-flash">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+                    {{ parts[1] if parts|length > 1 else msg }}
+                </div>
+              {% else %}
+                <div class="flash-error login-flash">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    {{ parts[1] if parts|length > 1 else msg }}
+                </div>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form action="/login" method="post">
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input class="form-control" name="username" placeholder="admin" required autofocus>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Parola</label>
+                <input class="form-control" name="password" type="password" placeholder="••••••••" required>
+            </div>
+            <label class="remember-row">
+                <input type="checkbox" name="remember">
+                Tine-ma minte
+            </label>
+            <button type="submit" class="btn btn-gold btn-full">
+                Autentificare
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </button>
+        </form>
+
+        <div class="login-footer">RentManager &copy; 2026</div>
+    </div>
+</div>
+</body>
+</html>

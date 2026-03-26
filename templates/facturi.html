@@ -1,0 +1,162 @@
+{% extends "layout.html" %}
+{% block main %}
+
+<!-- Summary Cards -->
+<div class="invoice-summary">
+    <div class="inv-sum-card danger-card">
+        <div class="inv-label">Total Neplatit</div>
+        <div class="inv-amount">
+            <span class="inv-currency">RON</span>{{ "%.2f"|format(total_unpaid) }}
+        </div>
+    </div>
+    <div class="inv-sum-card success-card">
+        <div class="inv-label">Total Incasat</div>
+        <div class="inv-amount">
+            <span class="inv-currency">RON</span>{{ "%.2f"|format(total_paid) }}
+        </div>
+    </div>
+</div>
+
+<div class="split-layout">
+
+    <!-- Left: New Invoice Form -->
+    <div class="form-card">
+        <h2>Factура Noua</h2>
+        <p class="sub">Creeaza o factura pentru un chirias.</p>
+        <hr class="form-divider">
+
+        {% if tenants %}
+        <form action="/facturi" method="post">
+            <input type="hidden" name="action" value="create">
+
+            <div class="form-group">
+                <label class="form-label">Chirias *</label>
+                <div class="select-wrap">
+                    <select class="form-select" name="tenant_id" required>
+                        <option value="" disabled selected>Selecteaza chirias</option>
+                        {% for t in tenants %}
+                            <option value="{{ t.id }}">{{ t.first_name }} {{ t.last_name }} — Unit {{ t.number }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Descriere</label>
+                <input class="form-control" name="description" placeholder="ex: Chirie lunara - Mai 2025" value="Chirie lunara">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Suma (RON) *</label>
+                    <input class="form-control" name="amount" type="number" min="1" step="0.01" placeholder="1500.00" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Data Scadenta *</label>
+                    <input class="form-control" name="due_date" type="date" value="{{ today }}" required>
+                </div>
+            </div>
+
+            <hr class="form-divider">
+
+            <button type="submit" class="btn btn-gold btn-full">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Genereaza Factura
+            </button>
+        </form>
+
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon-sm">👤</div>
+            <div class="empty-state-sub">Niciun chirias inregistrat. <a href="/add_tenant" class="empty-state-link">Adauga unul.</a></div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Right: Invoices Table -->
+    <div class="table-card">
+        <div class="tc-header">
+            <div class="tc-title">Toate Facturile</div>
+            <div class="pill">{{ bills|length }} total</div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Chirias</th>
+                    <th>Descriere</th>
+                    <th>Suma</th>
+                    <th>Scadenta</th>
+                    <th>Status</th>
+                    <th>Actiuni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bill in bills %}
+                <tr>
+                    <td>
+                        <div class="td-strong">{{ bill.first_name }} {{ bill.last_name }}</div>
+                        <div class="td-sub">Unit {{ bill.number }}</div>
+                    </td>
+                    <td class="td-em">{{ bill.description }}</td>
+                    <td>
+                        <div class="td-strong">RON {{ "%.2f"|format(bill.amount) }}</div>
+                    </td>
+                    <td>
+                        <div class="text-sm">{{ bill.due_date }}</div>
+                        {% if bill.paid_at %}
+                            <div class="td-sub">Platit: {{ bill.paid_at }}</div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if bill.status == 'Paid' %}
+                            <span class="badge badge-paid">Platit</span>
+                        {% else %}
+                            <span class="badge badge-unpaid">Neplatit</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="flex-actions">
+                            {% if bill.status == "Unpaid" %}
+                            <form action="/facturi" method="post" class="form-inline">
+                                <input type="hidden" name="action" value="pay">
+                                <input type="hidden" name="bill_id" value="{{ bill.id }}">
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
+                                    Platit
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form action="/facturi" method="post" class="form-inline">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="bill_id" value="{{ bill.id }}">
+                                <button type="submit" class="btn-icon-only" title="Sterge factura"
+                                    onclick="return confirm('Stergi aceasta factura?')">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                        <polyline points="3 6 5 6 21 6"/>
+                                        <path d="M19 6l-1 14H6L5 6"/>
+                                        <path d="M10 11v6M14 11v6"/>
+                                        <path d="M9 6V4h6v2"/>
+                                    </svg>
+                                </button>
+                            </form>
+                            <a href="/facturi/pdf/{{ bill.id }}" class="btn btn-ghost btn-sm" title="Descarca PDF">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                PDF
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr class="empty-row">
+                    <td colspan="6">Nicio factura creata inca.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+{% endblock %}

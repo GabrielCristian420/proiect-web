@@ -1,0 +1,9 @@
+flask
+flask-login
+flask-mail
+flask-wtf
+python-dotenv
+werkzeug
+psycopg2-binary
+gunicorn
+reportlab

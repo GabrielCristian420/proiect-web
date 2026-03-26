@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+{% block main %}
+
+<div class="grid-2col">
+    <div class="form-card">
+        <h2>Schimba Parola</h2>
+        <p class="sub">Actualizeaza parola contului tau.</p>
+        <hr class="form-divider">
+        <form action="/settings" method="post">
+            <input type="hidden" name="action" value="change_password">
+            <div class="form-group">
+                <label class="form-label">Parola Actuala *</label>
+                <input class="form-control" name="old_password" type="password" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Parola Noua * (min. 6 caractere)</label>
+                <input class="form-control" name="new_password" type="password" required minlength="6">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Confirma Parola Noua *</label>
+                <input class="form-control" name="confirm_password" type="password" required>
+            </div>
+            <hr class="form-divider">
+            <button type="submit" class="btn btn-gold btn-full">Salveaza Parola</button>
+        </form>
+    </div>
+
+    <div class="form-card">
+        <h2>Adauga Utilizator</h2>
+        <p class="sub">Creeaza un cont nou pentru un alt administrator.</p>
+        <hr class="form-divider">
+        <form action="/settings" method="post">
+            <input type="hidden" name="action" value="add_user">
+            <div class="form-group">
+                <label class="form-label">Username *</label>
+                <input class="form-control" name="new_username" placeholder="ex: ionpopescu" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email *</label>
+                <input class="form-control" name="new_email" type="email" placeholder="ion@email.com" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Parola *</label>
+                <input class="form-control" name="new_user_password" type="password" required minlength="6">
+            </div>
+            <hr class="form-divider">
+            <button type="submit" class="btn btn-gold btn-full">Creeaza Cont</button>
+        </form>
+    </div>
+</div>
+
+<div class="table-card mt-24">
+    <div class="tc-header">
+        <div class="tc-title">Utilizatori Inregistrati</div>
+        <div class="pill">{{ users_list|length }} conturi</div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Data creare</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for u in users_list %}
+            <tr>
+                <td>
+                    <div class="user-row">
+                        <div class="user-avatar user-avatar-sm">{{ u.username[0].upper() }}</div>
+                        <span class="td-strong">{{ u.username }}</span>
+                        {% if u.username == current_user.username %}
+                            <span class="badge badge-paid badge-sm">Tu</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td class="td-email">{{ u.email }}</td>
+                <td><span class="badge badge-rented">{{ u.role }}</span></td>
+                <td class="td-date">{{ u.created_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

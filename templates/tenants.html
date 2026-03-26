@@ -1,0 +1,88 @@
+{% extends "layout.html" %}
+{% block main %}
+
+<form class="search-bar" method="get" action="/tenants">
+    <input class="form-control" name="q" placeholder="Cauta dupa nume, email, unitate..." value="{{ search }}">
+    <button type="submit" class="btn btn-ghost">Cauta</button>
+    {% if search %}<a href="/tenants" class="btn btn-ghost">✕ Sterge</a>{% endif %}
+</form>
+
+<div class="section-header section-header-md">
+    <div class="section-title">Toti Chiriasii</div>
+    <a href="/add_tenant" class="btn btn-gold btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Adauga Chirias
+    </a>
+</div>
+
+<div class="table-card">
+    <div class="tc-header">
+        <div class="tc-title">Lista Chiriasi</div>
+        <div class="pill">{{ tenants|length }} total</div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Nume</th>
+                <th>Contact</th>
+                <th>Unitate</th>
+                <th>Adresa</th>
+                <th>Acte</th>
+                <th>Facturi Neplatite</th>
+                <th>Actiuni</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tenants %}
+            <tr>
+                <td><div class="td-strong">{{ t.first_name }} {{ t.last_name }}</div></td>
+                <td>
+                    <div class="td-email">{{ t.email }}</div>
+                    {% if t.phone %}<div class="td-sub">{{ t.phone }}</div>{% endif %}
+                </td>
+                <td><span class="badge badge-rented">Unitate {{ t.number }}</span></td>
+                <td class="td-address">{{ t.address }}</td>
+                <td>
+                    <a href="/acte/{{ t.id }}" class="btn btn-ghost btn-sm">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                        {{ t.nr_acte }} act{{ 'e' if t.nr_acte != 1 else '' }}
+                    </a>
+                </td>
+                <td>
+                    {% if t.unpaid > 0 %}
+                        <span class="badge badge-unpaid">{{ t.unpaid }} neplatit{{ 'e' if t.unpaid > 1 }}</span>
+                    {% else %}
+                        <span class="badge badge-paid">La zi</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form class="form-inline" action="/delete_tenant" method="post"
+                          onsubmit="return confirm('Stergi chiriasul {{ t.first_name }} {{ t.last_name }}?\nApartamentul va fi eliberat.')">
+                        <input type="hidden" name="tenant_id" value="{{ t.id }}">
+                        <button type="submit" class="btn btn-ghost btn-sm btn-delete">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6l-1 14H6L5 6"/>
+                                <path d="M10 11v6M14 11v6"/>
+                                <path d="M9 6V4h6v2"/>
+                            </svg>
+                            Elibereaza
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr class="empty-row">
+                <td colspan="7">Niciun chirias inregistrat inca.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

@@ -1,0 +1,124 @@
+{% extends "layout.html" %}
+{% block main %}
+
+<div class="split-layout">
+
+    <!-- Left: Form -->
+    <div class="form-card">
+        <h2>Raporteaza o Problema</h2>
+        <p class="sub">Trimite un tichet de mentenanta pentru orice unitate.</p>
+        <hr class="form-divider">
+
+        <form action="/maintenance" method="post">
+            <input type="hidden" name="action" value="create">
+
+            <div class="form-group">
+                <label class="form-label">Unitate *</label>
+                <div class="select-wrap">
+                    <select class="form-select" name="apartment_id" required>
+                        {% for apt in apartments %}
+                            <option value="{{ apt.id }}">Unitate {{ apt.number }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Descriere Problema *</label>
+                <textarea class="form-control" name="description" rows="4"
+                    placeholder="Descrie problema in detaliu..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Prioritate</label>
+                <div class="select-wrap">
+                    <select class="form-select" name="priority">
+                        <option value="Low">Scazuta — Non-urgent</option>
+                        <option value="Medium" selected>Medie — Standard</option>
+                        <option value="High">Ridicata — Urgent</option>
+                    </select>
+                </div>
+            </div>
+
+            <hr class="form-divider">
+
+            <button type="submit" class="btn btn-danger btn-full">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                Trimite Tichet
+            </button>
+        </form>
+    </div>
+
+    <!-- Right: Table -->
+    <div class="table-card">
+        <div class="tc-header">
+            <div class="tc-title">Tichete Active</div>
+            <div class="pill">
+                {{ tickets | selectattr('status', 'equalto', 'Open') | list | length }} deschise
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Unitate</th>
+                    <th>Problema</th>
+                    <th>Prioritate</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                    <th>Actiuni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tickets %}
+                <tr>
+                    <td><span class="td-strong">{{ t.number }}</span></td>
+                    <td><span class="td-em">{{ t.description }}</span></td>
+                    <td>
+                        {% if t.priority == 'High' %}
+                            <span class="badge badge-high">Ridicata</span>
+                        {% elif t.priority == 'Medium' %}
+                            <span class="badge badge-medium">Medie</span>
+                        {% else %}
+                            <span class="badge badge-low">Scazuta</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if t.status == 'Open' %}
+                            <span class="badge badge-open">Deschis</span>
+                        {% else %}
+                            <span class="badge badge-resolved">Rezolvat</span>
+                        {% endif %}
+                    </td>
+                    <td class="td-date">{{ t.created_at or '—' }}</td>
+                    <td>
+                        {% if t.status == 'Open' %}
+                        <form action="/maintenance" method="post">
+                            <input type="hidden" name="action" value="resolve">
+                            <input type="hidden" name="ticket_id" value="{{ t.id }}">
+                            <button type="submit" class="btn btn-success btn-sm">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
+                                Rezolva
+                            </button>
+                        </form>
+                        {% else %}
+                            <span class="td-date">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr class="empty-row">
+                    <td colspan="6">Niciun tichet activ — totul e in ordine.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+{% endblock %}

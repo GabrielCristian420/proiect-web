@@ -1,0 +1,56 @@
+{% extends "layout.html" %}
+{% block main %}
+
+<div class="form-card form-card-md">
+    <h2>Inregistrare Chirias Nou</h2>
+    <p class="sub">Atribuie un chirias unei unitati disponibile si activeaza contractul.</p>
+    <hr class="form-divider">
+
+    {% if available_apts %}
+    <form action="/add_tenant" method="post">
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Prenume *</label>
+                <input class="form-control" name="first_name" placeholder="ex: Gabriel" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Nume *</label>
+                <input class="form-control" name="last_name" placeholder="ex: Bicu" required>
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Adresa Email *</label>
+            <input class="form-control" name="email" type="email" placeholder="chirias@email.com" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Numar Telefon</label>
+            <input class="form-control" name="phone" type="tel" placeholder="07xx xxx xxx">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Atribuie Unitate *</label>
+            <div class="select-wrap">
+                <select class="form-select" name="apartment_id" required>
+                    <option value="" disabled selected>Selecteaza unitate disponibila</option>
+                    {% for apt in available_apts %}
+                        <option value="{{ apt.id }}">Unitate {{ apt.number }} — {{ apt.address }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <hr class="form-divider">
+        <button type="submit" class="btn btn-gold btn-full">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>
+            Confirma si Semneaza Contractul
+        </button>
+    </form>
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">🏠</div>
+        <div class="empty-state-title">Nicio Unitate Disponibila</div>
+        <div class="empty-state-sub">Toate unitatile sunt ocupate momentan.</div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
