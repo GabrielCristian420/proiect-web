@@ -69,6 +69,7 @@
                     <th>Problema</th>
                     <th>Prioritate</th>
                     <th>Status</th>
+                    <th>Cost</th>
                     <th>Data</th>
                     <th>Actiuni</th>
                 </tr>
@@ -90,29 +91,56 @@
                     <td>
                         {% if t.status == 'Open' %}
                             <span class="badge badge-open">Deschis</span>
+                        {% elif t.status == 'In Progress' %}
+                            <span class="badge badge-in-progress">In Lucru</span>
                         {% else %}
                             <span class="badge badge-resolved">Rezolvat</span>
                         {% endif %}
                     </td>
+                    <td>
+                        {% if t.cost and t.cost > 0 %}
+                            <span class="td-strong">{{ "%.0f"|format(t.cost) }} RON</span>
+                        {% else %}
+                            <span class="td-muted">—</span>
+                        {% endif %}
+                    </td>
                     <td class="td-date">{{ t.created_at or '—' }}</td>
                     <td>
+                        <div class="flex-actions">
                         {% if t.status == 'Open' %}
-                        <form action="/maintenance" method="post">
-                            <input type="hidden" name="action" value="resolve">
-                            <input type="hidden" name="ticket_id" value="{{ t.id }}">
-                            <button type="submit" class="btn btn-success btn-sm">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
-                                Rezolva
-                            </button>
-                        </form>
+                            <form action="/maintenance" method="post" class="form-inline">
+                                <input type="hidden" name="action" value="in_progress">
+                                <input type="hidden" name="ticket_id" value="{{ t.id }}">
+                                <button type="submit" class="btn btn-ghost btn-sm">Preia</button>
+                            </form>
+                        {% elif t.status == 'In Progress' %}
+                            <form action="/maintenance" method="post" class="form-inline" style="display:flex;gap:6px;align-items:center;">
+                                <input type="hidden" name="action" value="resolve">
+                                <input type="hidden" name="ticket_id" value="{{ t.id }}">
+                                <input class="form-control" name="cost" type="number" min="0" step="0.01" placeholder="Cost RON" style="width:100px;padding:5px 8px;font-size:12px;">
+                                <button type="submit" class="btn btn-success btn-sm">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>
+                                    Rezolvat
+                                </button>
+                            </form>
                         {% else %}
-                            <span class="td-date">—</span>
+                            <form action="/maintenance" method="post" class="form-inline" style="display:flex;gap:6px;align-items:center;">
+                                <input type="hidden" name="action" value="update_cost">
+                                <input type="hidden" name="ticket_id" value="{{ t.id }}">
+                                <input class="form-control" name="cost" type="number" min="0" step="0.01" value="{{ '%.2f'|format(t.cost) if t.cost else '' }}" placeholder="Cost RON" style="width:100px;padding:5px 8px;font-size:12px;">
+                                <button type="submit" class="btn btn-ghost btn-sm" title="Actualizează Cost">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                        <polyline points="20 6 9 17 4 12"/>
+                                    </svg>
+                                </button>
+                            </form>
                         {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% else %}
                 <tr class="empty-row">
-                    <td colspan="6">Niciun tichet activ — totul e in ordine.</td>
+                    <td colspan="7">Niciun tichet activ — totul e in ordine.</td>
                 </tr>
                 {% endfor %}
             </tbody>

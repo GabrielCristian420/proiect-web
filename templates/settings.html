@@ -1,7 +1,7 @@
 {% extends "layout.html" %}
 {% block main %}
 
-<div class="grid-2col">
+<div class="settings-forms">
     <div class="form-card">
         <h2>Schimba Parola</h2>
         <p class="sub">Actualizeaza parola contului tau.</p>
@@ -49,7 +49,7 @@
     </div>
 </div>
 
-<div class="table-card mt-24">
+<div class="table-card" style="margin-top: 24px;">
     <div class="tc-header">
         <div class="tc-title">Utilizatori Inregistrati</div>
         <div class="pill">{{ users_list|length }} conturi</div>
@@ -68,15 +68,14 @@
             <tr>
                 <td>
                     <div class="user-row">
-                        <div class="user-avatar user-avatar-sm">{{ u.username[0].upper() }}</div>
-                        <span class="td-strong">{{ u.username }}</span>
                         {% if u.username == current_user.username %}
-                            <span class="badge badge-paid badge-sm">Tu</span>
+                            <span class="badge badge-neutral badge-sm">Tu</span>
                         {% endif %}
+                        <span class="td-strong">{{ u.username }}</span>
                     </div>
                 </td>
                 <td class="td-email">{{ u.email }}</td>
-                <td><span class="badge badge-rented">{{ u.role }}</span></td>
+                <td><span class="badge badge-neutral">{{ u.role }}</span></td>
                 <td class="td-date">{{ u.created_at }}</td>
             </tr>
             {% endfor %}

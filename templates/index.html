@@ -1,66 +1,127 @@
 {% extends "layout.html" %}
 {% block main %}
 
+<!-- STAT CARDS -->
 <div class="stats-row">
-    <div class="stat-card">
-        <div class="stat-icon gold">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-            </svg>
-        </div>
-        <div><div class="stat-value">{{ total }}</div><div class="stat-label">Total Unitati</div></div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon green">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-            </svg>
-        </div>
-        <div><div class="stat-value">{{ occupied }}</div><div class="stat-label">Ocupate</div></div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon blue">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-        </div>
-        <div><div class="stat-value">{{ vacant }}</div><div class="stat-label">Disponibile</div></div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon orange">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-            </svg>
-        </div>
-        <div><div class="stat-value">{{ open_tickets }}</div><div class="stat-label">Tichete Deschise</div></div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon red">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                <rect x="2" y="5" width="20" height="14" rx="2"/>
-                <line x1="2" y1="10" x2="22" y2="10"/>
-            </svg>
-        </div>
-        <div><div class="stat-value">{{ unpaid_bills }}</div><div class="stat-label">Facturi Neplatite</div></div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon purple">
+    <div class="stat-card stat-highlight">
+        <div class="stat-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                 <line x1="12" y1="1" x2="12" y2="23"/>
                 <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
             </svg>
         </div>
         <div>
-            <div class="stat-value-sm">{{ "%.0f"|format(revenue) }}</div>
-            <div class="stat-label">RON incasat luna asta</div>
+            <div class="stat-value">{{ "%.0f"|format(revenue) }} RON</div>
+            <div class="stat-label">Incasat luna asta</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value">{{ total }}</div>
+            <div class="stat-label">Total Unitati</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value">{{ occupied }}</div>
+            <div class="stat-label">Ocupate</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value">{{ vacant }}</div>
+            <div class="stat-label">Disponibile</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value">{{ open_tickets }}</div>
+            <div class="stat-label">Tichete Deschise</div>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                <line x1="2" y1="10" x2="22" y2="10"/>
+            </svg>
+        </div>
+        <div>
+            <div class="stat-value">{{ "%.0f"|format(unpaid_ron) }} RON</div>
+            <div class="stat-label">Restante de recuperat</div>
         </div>
     </div>
 </div>
 
+<!-- CONTRACT EXPIRY ALERTS -->
+{% if expiring %}
+<div class="alert-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <div>
+        {% for e in expiring %}
+        <div>Contractul lui <strong>{{ e.first_name }} {{ e.last_name }}</strong> (Unitate {{ e.number }}) expira pe <strong>{{ e.contract_end }}</strong></div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- MAIN GRID -->
 <div class="grid-dash">
     <div>
+        <!-- CHART -->
+        <div class="table-card" style="margin-bottom:24px; padding: 24px;">
+            <div class="tc-header" style="border:none; padding: 0 0 16px;">
+                <div class="tc-header-left">
+                    <div class="tc-title">Raport Financiar</div>
+                    <div class="pill">Ultimele 6 luni</div>
+                </div>
+                <div class="tc-header-right">
+                    <div style="font-size:13px; color: var(--text-s);">
+                        Profit luna curenta: 
+                        <strong style="color: {% if profit >= 0 %}var(--success){% else %}var(--danger){% endif %}; font-size:15px;">
+                            {{ "%.0f"|format(profit) }} RON
+                        </strong>
+                    </div>
+                    <form action="/bulk_invoice" method="post" style="display:inline;">
+                        <button type="button" class="btn btn-gold btn-sm" onclick="showConfirmModal('Generare Automată', 'Generezi facturi pentru toți chiriașii activi pe luna curentă?', this.closest('form'))">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                                <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+                            </svg>
+                            Facturi luna curenta
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <div style="position: relative; height: 240px; width: 100%;">
+                <canvas id="financeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- PROPERTIES -->
         <div class="section-header">
             <div class="section-title">Toate Proprietatile</div>
             <div class="pill">{{ total }} unitati</div>
@@ -80,15 +141,29 @@
                     {% endif %}
                 </div>
                 <div class="apt-card-body">
-                    <div class="tenant-block {{ 'occupied' if apt.first_name else 'vacant' }}">
-                        {% if apt.first_name %}
-                            <div class="tb-label">Chirias Curent</div>
-                            <div class="tb-name">{{ apt.first_name }} {{ apt.last_name }}</div>
-                        {% else %}
-                            <div class="tb-label">Disponibilitate</div>
-                            <div class="tb-name">Gata pentru mutare</div>
+                    {% if apt.first_name %}
+                        <div class="tenant-info-label">Chirias</div>
+                        <div class="tenant-info-value">{{ apt.first_name }} {{ apt.last_name }}</div>
+                        {% if apt.unpaid_count and apt.unpaid_count > 0 %}
+                        <div style="margin-top:8px;">
+                            <span class="badge badge-unpaid badge-sm">{{ apt.unpaid_count }} factur{{ 'i' if apt.unpaid_count > 1 else 'a' }} ({{ "%.0f"|format(apt.unpaid_amount) }} RON)</span>
+                        </div>
                         {% endif %}
-                    </div>
+                        {% if apt.open_maint and apt.open_maint > 0 %}
+                        <div style="margin-top:4px;">
+                            <span class="badge badge-open badge-sm">{{ apt.open_maint }} tichet{{ 'e' if apt.open_maint > 1 else '' }}</span>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="tenant-info-label">Disponibilitate</div>
+                        <div class="tenant-info-empty">Gata pentru mutare</div>
+                        <a href="/add_tenant?apt={{ apt.id }}" class="btn btn-gold btn-sm" style="margin-top:12px;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                            </svg>
+                            Adauga chirias
+                        </a>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
@@ -121,5 +196,88 @@
         </div>
     </div>
 </div>
+
+<!-- CHART.JS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const ctx = document.getElementById('financeChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: {{ chart_labels | tojson }},
+        datasets: [
+            {
+                label: 'Incasari (RON)',
+                data: {{ chart_income | tojson }},
+                backgroundColor: 'rgba(15, 118, 110, 0.75)',
+                borderColor: 'rgba(15, 118, 110, 1)',
+                borderWidth: 1,
+                borderRadius: 6,
+                barPercentage: 0.5,
+                categoryPercentage: 0.7,
+            },
+            {
+                label: 'Cheltuieli (RON)',
+                data: {{ chart_expenses | tojson }},
+                backgroundColor: 'rgba(239, 68, 68, 0.6)',
+                borderColor: 'rgba(239, 68, 68, 1)',
+                borderWidth: 1,
+                borderRadius: 6,
+                barPercentage: 0.5,
+                categoryPercentage: 0.7,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'top',
+                align: 'end',
+                labels: {
+                    font: { family: 'Inter', size: 12, weight: 500 },
+                    color: '#94a3b8',
+                    usePointStyle: true,
+                    pointStyle: 'rectRounded',
+                    padding: 16,
+                }
+            },
+            tooltip: {
+                backgroundColor: '#1e293b',
+                titleFont: { family: 'Inter', size: 13 },
+                bodyFont: { family: 'Inter', size: 13 },
+                cornerRadius: 8,
+                padding: 12,
+                callbacks: {
+                    label: function(ctx) {
+                        return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('ro-RO') + ' RON';
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false },
+                ticks: {
+                    font: { family: 'Inter', size: 11 },
+                    color: '#94a3b8',
+                    callback: function(v) { return v.toLocaleString('ro-RO') + ' RON'; }
+                },
+                border: { display: false }
+            },
+            x: {
+                grid: { display: false },
+                ticks: {
+                    font: { family: 'Inter', size: 12, weight: 500 },
+                    color: '#64748b'
+                },
+                border: { display: false }
+            }
+        }
+    }
+});
+</script>
 
 {% endblock %}

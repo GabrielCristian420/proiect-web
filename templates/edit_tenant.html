@@ -2,38 +2,37 @@
 {% block main %}
 
 <div class="form-card form-card-md">
-    <h2>Inregistrare Chirias Nou</h2>
-    <p class="sub">Atribuie un chirias unei unitati disponibile si activeaza contractul.</p>
+    <h2>Editeaza Chirias</h2>
+    <p class="sub">Modifica datele pentru {{ tenant.first_name }} {{ tenant.last_name }} — Unitatea {{ tenant.number }}.</p>
     <hr class="form-divider">
 
-    {% if available_apts %}
-    <form action="/add_tenant" method="post">
+    <form action="/edit_tenant/{{ tenant.id }}" method="post">
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">Prenume *</label>
-                <input class="form-control" name="first_name" placeholder="ex: Gabriel" required>
+                <input class="form-control" name="first_name" value="{{ tenant.first_name }}" required>
             </div>
             <div class="form-group">
                 <label class="form-label">Nume *</label>
-                <input class="form-control" name="last_name" placeholder="ex: Bicu" required>
+                <input class="form-control" name="last_name" value="{{ tenant.last_name }}" required>
             </div>
         </div>
         <div class="form-group">
             <label class="form-label">Adresa Email *</label>
-            <input class="form-control" name="email" type="email" placeholder="chirias@email.com" required>
+            <input class="form-control" name="email" type="email" value="{{ tenant.email }}" required>
         </div>
         <div class="form-group">
             <label class="form-label">Numar Telefon</label>
-            <input class="form-control" name="phone" type="tel" placeholder="07xx xxx xxx">
+            <input class="form-control" name="phone" type="tel" value="{{ tenant.phone or '' }}">
         </div>
         <div class="form-group">
-            <label class="form-label">Atribuie Unitate *</label>
+            <label class="form-label">Unitate</label>
             <div class="select-wrap">
-                <select class="form-select" name="apartment_id" required>
-                    <option value="" disabled {% if not preselect %}selected{% endif %}>Selecteaza unitate disponibila</option>
+                <select class="form-select" name="apartment_id">
                     {% for apt in available_apts %}
-                        <option value="{{ apt.id }}" {% if preselect and preselect|string == apt.id|string %}selected{% endif %}>
+                        <option value="{{ apt.id }}" {% if apt.id == tenant.apartment_id %}selected{% endif %}>
                             Unitate {{ apt.number }} — {{ apt.address }}
+                            {% if apt.id == tenant.apartment_id %}(actuala){% endif %}
                         </option>
                     {% endfor %}
                 </select>
@@ -43,31 +42,23 @@
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">Inceput Contract</label>
-                <input class="form-control" name="contract_start" type="date">
+                <input class="form-control" name="contract_start" type="date" value="{{ tenant.contract_start or '' }}">
             </div>
             <div class="form-group">
                 <label class="form-label">Sfarsit Contract</label>
-                <input class="form-control" name="contract_end" type="date">
+                <input class="form-control" name="contract_end" type="date" value="{{ tenant.contract_end or '' }}">
             </div>
         </div>
         <div class="form-group">
             <label class="form-label">Chirie Lunara (RON)</label>
-            <input class="form-control" name="rent_amount" type="number" step="0.01" min="0" placeholder="ex: 1500">
+            <input class="form-control" name="rent_amount" type="number" step="0.01" min="0" value="{{ tenant.rent_amount or '' }}" placeholder="ex: 1500">
         </div>
         <hr class="form-divider">
         <button type="submit" class="btn btn-gold btn-full">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>
-            Confirma si Semneaza Contractul
+            Salveaza Modificarile
         </button>
     </form>
-
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-state-icon-sm">&#127968;</div>
-        <div class="empty-state-title">Nicio Unitate Disponibila</div>
-        <div class="empty-state-sub">Toate unitatile sunt ocupate momentan.</div>
-    </div>
-    {% endif %}
 </div>
 
 {% endblock %}

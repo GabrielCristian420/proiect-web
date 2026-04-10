@@ -208,16 +208,22 @@ def settings():
 def index():
     apartments = db_execute("""
         SELECT a.id, a.number, a.address, a.status,
-               t.first_name, t.last_name, t.id AS tenant_id
+               t.first_name, t.last_name, t.id AS tenant_id,
+               t.contract_end,
+               (SELECT COUNT(*) FROM facturi f WHERE f.tenant_id = t.id AND f.status = 'Unpaid') AS unpaid_count,
+               (SELECT COALESCE(SUM(f2.amount), 0) FROM facturi f2 WHERE f2.tenant_id = t.id AND f2.status = 'Unpaid') AS unpaid_amount,
+               (SELECT COUNT(*) FROM maintenance m WHERE m.apartment_id = a.id AND m.status != 'Resolved') AS open_maint
         FROM apartments a
-        LEFT JOIN tenants t ON a.id = t.apartment_id
+        LEFT JOIN tenants t ON a.id = t.apartment_id AND t.is_active = TRUE
     """)
     total    = len(apartments)
     occupied = sum(1 for a in apartments if a["status"] == "Rented")
     vacant   = total - occupied
 
-    open_tickets = db_execute("SELECT COUNT(*) AS cnt FROM maintenance WHERE status = 'Open'")[0]["cnt"]
-    unpaid_bills = db_execute("SELECT COUNT(*) AS cnt FROM facturi WHERE status = 'Unpaid'")[0]["cnt"]
+    open_tickets = db_execute("SELECT COUNT(*) AS cnt FROM maintenance WHERE status != 'Resolved'")[0]["cnt"]
+    unpaid_data  = db_execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total_ron FROM facturi WHERE status = 'Unpaid'")[0]
+    unpaid_bills = unpaid_data["cnt"]
+    unpaid_ron   = unpaid_data["total_ron"]
 
     this_month = date.today().strftime("%Y-%m")
     revenue = db_execute(
@@ -231,11 +237,87 @@ def index():
         ORDER BY f.id DESC LIMIT 5
     """)
 
+    # Contract expiry alerts (next 30 days)
+    expiring = db_execute("""
+        SELECT t.first_name, t.last_name, t.contract_end, a.number
+        FROM tenants t JOIN apartments a ON t.apartment_id = a.id
+        WHERE t.is_active = TRUE AND t.contract_end IS NOT NULL
+          AND t.contract_end BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '30 days'
+        ORDER BY t.contract_end
+    """)
+
+    # Chart data: last 6 months revenue vs maintenance costs
+    chart_data = db_execute("""
+        SELECT months.m AS month,
+               COALESCE((SELECT SUM(f.amount) FROM facturi f WHERE f.status='Paid'
+                         AND TO_CHAR(f.paid_at, 'YYYY-MM') = months.m), 0) AS income,
+               COALESCE((SELECT SUM(m.cost) FROM maintenance m WHERE m.status='Resolved'
+                         AND TO_CHAR(m.created_at, 'YYYY-MM') = months.m), 0) AS expenses
+        FROM (
+            SELECT TO_CHAR(CURRENT_DATE - (n || ' months')::interval, 'YYYY-MM') AS m
+            FROM generate_series(5, 0, -1) AS n
+        ) months
+        ORDER BY months.m
+    """)
+    chart_labels = [r["month"] for r in chart_data]
+    chart_income = [float(r["income"]) for r in chart_data]
+    chart_expenses = [float(r["expenses"]) for r in chart_data]
+
+    # Total maintenance costs this month
+    maint_costs = db_execute(
+        "SELECT COALESCE(SUM(cost), 0) AS total FROM maintenance WHERE status='Resolved' AND TO_CHAR(created_at, 'YYYY-MM') = %s",
+        this_month
+    )[0]["total"]
+    profit = float(revenue) - float(maint_costs)
+
     return render_template("index.html",
         apartments=apartments, total=total, occupied=occupied,
         vacant=vacant, open_tickets=open_tickets, unpaid_bills=unpaid_bills,
-        revenue=revenue, recent=recent
+        unpaid_ron=unpaid_ron, revenue=revenue, recent=recent,
+        expiring=expiring, chart_labels=chart_labels,
+        chart_income=chart_income, chart_expenses=chart_expenses,
+        profit=profit
     )
+
+
+@app.route("/bulk_invoice", methods=["POST"])
+@login_required
+def bulk_invoice():
+    """Generate invoices for all active tenants with rent_amount set."""
+    tenants_with_rent = db_execute("""
+        SELECT t.id, t.first_name, t.last_name, t.rent_amount, t.email, a.number
+        FROM tenants t JOIN apartments a ON t.apartment_id = a.id
+        WHERE t.is_active = TRUE AND t.rent_amount IS NOT NULL AND t.rent_amount > 0
+    """)
+    if not tenants_with_rent:
+        flash("error|Niciun chirias nu are chiria lunara setata. Editeaza chiriasii mai intai.")
+        return redirect("/")
+    count = 0
+    month_name = date.today().strftime("%B %Y")
+    year = date.today().year
+    for t in tenants_with_rent:
+        # Check if invoice already exists this month for this tenant
+        existing = db_execute(
+            "SELECT id FROM facturi WHERE tenant_id = %s AND TO_CHAR(created_at, 'YYYY-MM') = %s",
+            t["id"], date.today().strftime("%Y-%m")
+        )
+        if existing:
+            continue
+        last = db_execute("SELECT COUNT(*) AS cnt FROM facturi WHERE EXTRACT(YEAR FROM created_at) = %s", year)[0]["cnt"]
+        invoice_number = f"RM-{year}-{last + 1:03d}"
+        due_date = date.today().replace(day=28).isoformat() if date.today().day <= 28 else date.today().isoformat()
+        db_execute(
+            "INSERT INTO facturi (tenant_id, amount, description, due_date, status, invoice_number) VALUES (%s, %s, %s, %s, 'Unpaid', %s)",
+            t["id"], t["rent_amount"], f"Chirie lunara - {month_name}", due_date, invoice_number
+        )
+        send_email(t["email"], f"Factura noua {invoice_number}",
+            f"Buna ziua {t['first_name']},\n\nAi o factura noua ({invoice_number}) de {t['rent_amount']} RON.\nData scadenta: {due_date}.\n\nRentManager")
+        count += 1
+    if count > 0:
+        flash(f"success|{count} facturi generate automat pentru luna curenta!")
+    else:
+        flash("error|Toate facturile pe luna asta au fost deja generate.")
+    return redirect("/")
 
 
 # ══════════════════════════════════════════════
@@ -246,22 +328,28 @@ def index():
 @login_required
 def tenants():
     search = request.args.get("q", "").strip()
+    show_inactive = request.args.get("show_inactive") == "1"
     base = """
         SELECT t.id, t.first_name, t.last_name, t.email, t.phone,
+               t.is_active, t.contract_end, t.rent_amount,
                a.number, a.address, a.id AS apartment_id,
                (SELECT COUNT(*) FROM facturi f WHERE f.tenant_id = t.id AND f.status = 'Unpaid') AS unpaid,
                (SELECT COUNT(*) FROM acte ac WHERE ac.tenant_id = t.id) AS nr_acte
         FROM tenants t JOIN apartments a ON t.apartment_id = a.id
     """
+    where_clauses = []
+    params = []
+    if not show_inactive:
+        where_clauses.append("t.is_active = TRUE")
     if search:
         like = f"%{search}%"
-        all_tenants = db_execute(
-            base + " WHERE t.first_name ILIKE %s OR t.last_name ILIKE %s OR t.email ILIKE %s OR a.number ILIKE %s ORDER BY t.last_name",
-            like, like, like, like
-        )
-    else:
-        all_tenants = db_execute(base + " ORDER BY t.last_name")
-    return render_template("tenants.html", tenants=all_tenants, search=search)
+        where_clauses.append("(t.first_name ILIKE %s OR t.last_name ILIKE %s OR t.email ILIKE %s OR a.number ILIKE %s)")
+        params.extend([like, like, like, like])
+    if where_clauses:
+        base += " WHERE " + " AND ".join(where_clauses)
+    base += " ORDER BY t.is_active DESC, t.last_name"
+    all_tenants = db_execute(base, *params)
+    return render_template("tenants.html", tenants=all_tenants, search=search, show_inactive=show_inactive)
 
 
 @app.route("/add_tenant", methods=["GET", "POST"])
@@ -273,26 +361,40 @@ def add_tenant():
         email  = request.form.get("email", "").strip()
         phone  = request.form.get("phone", "").strip()
         apt_id = request.form.get("apartment_id")
+        contract_start = request.form.get("contract_start") or None
+        contract_end   = request.form.get("contract_end") or None
+        rent_amount    = request.form.get("rent_amount") or None
         if not fname or not lname or not email or not apt_id:
             flash("error|Completeaza toate campurile obligatorii.")
             return redirect("/add_tenant")
-        db_execute(
-            "INSERT INTO tenants (first_name, last_name, email, phone, apartment_id) VALUES (%s, %s, %s, %s, %s)",
-            fname, lname, email, phone, apt_id
+        # Check apartment is truly available
+        apt_check = db_execute("SELECT status FROM apartments WHERE id = %s", apt_id)
+        if apt_check and apt_check[0]["status"] != "Available":
+            flash("error|Aceasta unitate este deja ocupata.")
+            return redirect("/add_tenant")
+        result = db_execute(
+            "INSERT INTO tenants (first_name, last_name, email, phone, apartment_id, contract_start, contract_end, rent_amount) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+            fname, lname, email, phone, apt_id, contract_start, contract_end, rent_amount
         )
         db_execute("UPDATE apartments SET status = 'Rented' WHERE id = %s", apt_id)
         apt = db_execute("SELECT number, address FROM apartments WHERE id = %s", apt_id)[0]
         send_email(email, "Bun venit la RentManager!",
             f"Buna ziua {fname},\n\nContractul tau pentru Unitatea {apt['number']} ({apt['address']}) a fost activat.\n\nEchipa RentManager")
-        flash(f"success|Chiriasul {fname} {lname} a fost adaugat!")
+        flash(f"success|Chiriasul {fname} {lname} a fost adaugat! Incarca actele de contract.")
+        # Get new tenant id for redirect
+        new_t = db_execute("SELECT id FROM tenants WHERE first_name=%s AND last_name=%s AND apartment_id=%s ORDER BY id DESC LIMIT 1", fname, lname, apt_id)
+        if new_t:
+            return redirect(f"/acte/{new_t[0]['id']}")
         return redirect("/tenants")
+    preselect = request.args.get("apt")
     available_apts = db_execute("SELECT * FROM apartments WHERE status = 'Available'")
-    return render_template("add_tenant.html", available_apts=available_apts)
+    return render_template("add_tenant.html", available_apts=available_apts, preselect=preselect)
 
 
 @app.route("/delete_tenant", methods=["POST"])
 @login_required
 def delete_tenant():
+    """Soft delete: deactivate tenant, free apartment, keep history."""
     tenant_id = request.form.get("tenant_id")
     rows = db_execute("SELECT * FROM tenants WHERE id = %s", tenant_id)
     if not rows:
@@ -301,17 +403,88 @@ def delete_tenant():
     t      = rows[0]
     apt_id = t["apartment_id"]
     name   = f"{t['first_name']} {t['last_name']}"
-    acte_rows = db_execute("SELECT filename FROM acte WHERE tenant_id = %s", tenant_id)
-    for a in acte_rows:
-        fpath = os.path.join(UPLOAD_FOLDER, a["filename"])
-        if os.path.exists(fpath):
-            os.remove(fpath)
-    db_execute("DELETE FROM acte WHERE tenant_id = %s", tenant_id)
-    db_execute("DELETE FROM facturi WHERE tenant_id = %s", tenant_id)
-    db_execute("DELETE FROM tenants WHERE id = %s", tenant_id)
+    
+    # Validation: Cannot deactivate if they have unpaid invoices
+    unpaid = db_execute("SELECT COUNT(*) as cnt FROM facturi WHERE tenant_id = %s AND status = 'Unpaid'", tenant_id)[0]["cnt"]
+    if unpaid > 0:
+        flash("error|Nu poți dezactiva un chiriaș cu facturi neplătite. Șterge sau marchează-le ca plătite mai întâi.")
+        return redirect("/tenants")
+        
+    # Soft delete: mark inactive, keep all data
+    db_execute("UPDATE tenants SET is_active = FALSE WHERE id = %s", tenant_id)
     db_execute("UPDATE apartments SET status = 'Available' WHERE id = %s", apt_id)
-    flash(f"success|{name} eliminat. Apartamentul este disponibil.")
+    flash(f"success|{name} dezactivat. Apartamentul este disponibil. Istoricul a fost pastrat.")
     return redirect("/tenants")
+
+
+@app.route("/edit_tenant/<int:tenant_id>", methods=["GET", "POST"])
+@login_required
+def edit_tenant(tenant_id):
+    tenant = db_execute("""
+        SELECT t.*, a.number, a.address FROM tenants t
+        JOIN apartments a ON t.apartment_id = a.id WHERE t.id = %s
+    """, tenant_id)
+    if not tenant:
+        flash("error|Chiriasul nu a fost gasit.")
+        return redirect("/tenants")
+    t = tenant[0]
+    if request.method == "POST":
+        fname  = request.form.get("first_name", "").strip()
+        lname  = request.form.get("last_name", "").strip()
+        email  = request.form.get("email", "").strip()
+        phone  = request.form.get("phone", "").strip()
+        contract_start = request.form.get("contract_start") or None
+        contract_end   = request.form.get("contract_end") or None
+        rent_amount    = request.form.get("rent_amount") or None
+        new_apt_id     = request.form.get("apartment_id")
+        if not fname or not lname or not email:
+            flash("error|Completeaza toate campurile obligatorii.")
+            return redirect(f"/edit_tenant/{tenant_id}")
+        # Handle apartment change
+        if new_apt_id and int(new_apt_id) != t["apartment_id"]:
+            db_execute("UPDATE apartments SET status = 'Available' WHERE id = %s", t["apartment_id"])
+            db_execute("UPDATE apartments SET status = 'Rented' WHERE id = %s", new_apt_id)
+        else:
+            new_apt_id = t["apartment_id"]
+        db_execute("""
+            UPDATE tenants SET first_name=%s, last_name=%s, email=%s, phone=%s,
+                apartment_id=%s, contract_start=%s, contract_end=%s, rent_amount=%s
+            WHERE id = %s
+        """, fname, lname, email, phone, new_apt_id, contract_start, contract_end, rent_amount, tenant_id)
+        flash(f"success|Chiriasul {fname} {lname} a fost actualizat!")
+        return redirect("/tenants")
+    # GET: show form with current values
+    available_apts = db_execute("SELECT * FROM apartments WHERE status = 'Available' OR id = %s", t["apartment_id"])
+    return render_template("edit_tenant.html", tenant=t, available_apts=available_apts)
+
+
+@app.route("/edit_factura/<int:bill_id>", methods=["GET", "POST"])
+@login_required
+def edit_factura(bill_id):
+    bill = db_execute("""
+        SELECT f.*, t.first_name, t.last_name, a.number
+        FROM facturi f JOIN tenants t ON f.tenant_id = t.id
+        JOIN apartments a ON t.apartment_id = a.id WHERE f.id = %s
+    """, bill_id)
+    if not bill:
+        flash("error|Factura nu a fost gasita.")
+        return redirect("/facturi")
+    b = bill[0]
+    if request.method == "POST":
+        amount      = request.form.get("amount")
+        description = request.form.get("description", "").strip()
+        due_date    = request.form.get("due_date")
+        if not amount or not due_date:
+            flash("error|Completeaza toate campurile obligatorii.")
+            return redirect(f"/edit_factura/{bill_id}")
+        if float(amount) < 0:
+            flash("error|Suma nu poate fi negativa.")
+            return redirect(f"/edit_factura/{bill_id}")
+        db_execute("UPDATE facturi SET amount=%s, description=%s, due_date=%s WHERE id=%s",
+                   amount, description, due_date, bill_id)
+        flash("success|Factura actualizata!")
+        return redirect("/facturi")
+    return render_template("edit_factura.html", bill=b)
 
 
 # ══════════════════════════════════════════════
@@ -414,36 +587,55 @@ def facturi():
         if not tenant_id or not amount or not due_date:
             flash("error|Completeaza toate campurile obligatorii.")
             return redirect("/facturi")
-        db_execute("INSERT INTO facturi (tenant_id, amount, description, due_date, status) VALUES (%s, %s, %s, %s, 'Unpaid')",
-                   tenant_id, amount, description, due_date)
+        if float(amount) < 0:
+            flash("error|Suma nu poate fi negativa.")
+            return redirect("/facturi")
+        if due_date < date.today().isoformat():
+            flash("error|Data scadentă nu poate fi în trecut.")
+            return redirect("/facturi")
+        # Generate sequential invoice number
+        year = date.today().year
+        last = db_execute("SELECT COUNT(*) AS cnt FROM facturi WHERE EXTRACT(YEAR FROM created_at) = %s", year)[0]["cnt"]
+        invoice_number = f"RM-{year}-{last + 1:03d}"
+        db_execute("INSERT INTO facturi (tenant_id, amount, description, due_date, status, invoice_number) VALUES (%s, %s, %s, %s, 'Unpaid', %s)",
+                   tenant_id, amount, description, due_date, invoice_number)
         t = db_execute("""
             SELECT t.email, t.first_name, a.number FROM tenants t
             JOIN apartments a ON t.apartment_id = a.id WHERE t.id = %s
         """, tenant_id)
         if t:
-            send_email(t[0]["email"], f"Factura noua — {description}",
-                f"Buna ziua {t[0]['first_name']},\n\nAi o factura noua de {amount} RON.\nData scadenta: {due_date}.\n\nRentManager")
-        flash("success|Factura creata!")
+            send_email(t[0]["email"], f"Factura noua {invoice_number} - {description}",
+                f"Buna ziua {t[0]['first_name']},\n\nAi o factura noua ({invoice_number}) de {amount} RON.\nData scadenta: {due_date}.\n\nRentManager")
+        flash(f"success|Factura {invoice_number} creata!")
         return redirect("/facturi")
 
-    bills = db_execute("""
-        SELECT f.id, f.amount, f.description, f.due_date, f.status, f.paid_at,
+    # Filters
+    status_filter = request.args.get("status", "all")
+    base_query = """
+        SELECT f.id, f.amount, f.description, f.due_date, f.status, f.paid_at, f.invoice_number,
                t.id AS tenant_id, t.first_name, t.last_name, a.number
         FROM facturi f JOIN tenants t ON f.tenant_id = t.id
         JOIN apartments a ON t.apartment_id = a.id
-        ORDER BY f.status ASC, f.due_date ASC
-    """)
+    """
+    if status_filter == "unpaid":
+        base_query += " WHERE f.status = 'Unpaid'"
+    elif status_filter == "paid":
+        base_query += " WHERE f.status = 'Paid'"
+    base_query += " ORDER BY f.status ASC, f.due_date ASC"
+    bills = db_execute(base_query)
+
     tenants_list = db_execute("""
         SELECT t.id, t.first_name, t.last_name, a.number
         FROM tenants t JOIN apartments a ON t.apartment_id = a.id
+        WHERE t.is_active = TRUE
     """)
     today        = date.today().isoformat()
-    total_unpaid = sum(b["amount"] for b in bills if b["status"] == "Unpaid")
-    total_paid   = sum(b["amount"] for b in bills if b["status"] == "Paid")
+    total_unpaid = db_execute("SELECT COALESCE(SUM(amount), 0) AS t FROM facturi WHERE status = 'Unpaid'")[0]["t"]
+    total_paid   = db_execute("SELECT COALESCE(SUM(amount), 0) AS t FROM facturi WHERE status = 'Paid'")[0]["t"]
     return render_template("facturi.html",
         bills=bills, tenants=tenants_list,
         today=today, total_unpaid=total_unpaid, total_paid=total_paid,
-        pdf_available=PDF_AVAILABLE)
+        pdf_available=PDF_AVAILABLE, status_filter=status_filter)
 
 
 @app.route("/facturi/pdf/<int:bill_id>")
@@ -512,8 +704,20 @@ def maintenance():
         action = request.form.get("action", "create")
         if action == "resolve":
             ticket_id = request.form.get("ticket_id")
-            db_execute("UPDATE maintenance SET status='Resolved' WHERE id=%s", ticket_id)
+            cost = request.form.get("cost", 0)
+            db_execute("UPDATE maintenance SET status='Resolved', cost=%s WHERE id=%s", cost or 0, ticket_id)
             flash("success|Tichetul a fost rezolvat.")
+            return redirect("/maintenance")
+        if action == "in_progress":
+            ticket_id = request.form.get("ticket_id")
+            db_execute("UPDATE maintenance SET status='In Progress' WHERE id=%s", ticket_id)
+            flash("success|Tichetul a fost preluat.")
+            return redirect("/maintenance")
+        if action == "update_cost":
+            ticket_id = request.form.get("ticket_id")
+            cost = request.form.get("cost", 0)
+            db_execute("UPDATE maintenance SET cost=%s WHERE id=%s", cost or 0, ticket_id)
+            flash("success|Costul a fost actualizat cu succes.")
             return redirect("/maintenance")
         apt_id   = request.form.get("apartment_id")
         desc     = request.form.get("description", "").strip()
@@ -526,9 +730,10 @@ def maintenance():
         flash("success|Tichetul a fost trimis.")
         return redirect("/maintenance")
     tickets    = db_execute("""
-        SELECT m.id, a.number, m.description, m.priority, m.status, m.created_at
+        SELECT m.id, a.number, m.description, m.priority, m.status, m.created_at, m.cost
         FROM maintenance m JOIN apartments a ON m.apartment_id = a.id
-        ORDER BY CASE m.priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END, m.id DESC
+        ORDER BY CASE m.status WHEN 'Open' THEN 1 WHEN 'In Progress' THEN 2 ELSE 3 END,
+                 CASE m.priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END, m.id DESC
     """)
     apartments = db_execute("SELECT id, number FROM apartments")
     return render_template("maintenance.html", tickets=tickets, apartments=apartments)

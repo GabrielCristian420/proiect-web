@@ -117,7 +117,7 @@
                                 Descarca
                             </a>
                             <form class="form-inline" action="/acte/delete/{{ doc.id }}" method="post"
-                                  onsubmit="return confirm('Stergi documentul {{ doc.original_name }}?')">
+                                  onsubmit="event.preventDefault(); showConfirmModal('Ștergere Document', 'Ești sigur că vrei să ștergi documentul {{ doc.original_name }}?', this);">
                                 <button type="submit" class="btn-icon-only" title="Sterge">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                                         <polyline points="3 6 5 6 21 6"/>

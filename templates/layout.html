@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="/static/styles.css" rel="stylesheet">
     <title>RentManager</title>
 </head>
@@ -108,9 +107,22 @@
                 {% elif request.path == '/facturi' %}Gestiune Facturi
                 {% elif request.path == '/maintenance' %}Mentenanta
                 {% elif request.path == '/settings' %}Setari Cont
+                {% elif '/edit_tenant' in request.path %}Editeaza Chirias
+                {% elif '/edit_factura' in request.path %}Editeaza Factura
                 {% elif '/acte' in request.path %}Acte Chirias
                 {% else %}RentManager{% endif %}
             </div>
+            {% if '/acte' in request.path or '/edit_tenant' in request.path or '/edit_factura' in request.path %}
+            <div class="breadcrumbs">
+                {% if '/acte' in request.path %}
+                    <a href="/tenants">Chiriasi</a> <span class="bc-sep">/</span> <span>Acte</span>
+                {% elif '/edit_tenant' in request.path %}
+                    <a href="/tenants">Chiriasi</a> <span class="bc-sep">/</span> <span>Editeaza</span>
+                {% elif '/edit_factura' in request.path %}
+                    <a href="/facturi">Facturi</a> <span class="bc-sep">/</span> <span>Editeaza</span>
+                {% endif %}
+            </div>
+            {% endif %}
             <div class="topbar-right">
                 <div class="topbar-chip">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="13" height="13">
@@ -140,12 +152,10 @@
                   {% set parts = msg.split('|') %}
                   {% if parts[0] == 'success' %}
                     <div class="flash-success">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
                         {{ parts[1] if parts|length > 1 else msg }}
                     </div>
                   {% else %}
                     <div class="flash-error">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                         {{ parts[1] if parts|length > 1 else msg }}
                     </div>
                   {% endif %}
@@ -182,6 +192,58 @@
         Setari
     </a>
 </nav>
+
+<!-- CONFIRMATION MODAL -->
+<div id="confirmModal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+        <div class="modal-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+        </div>
+        <div class="modal-title" id="modalTitle">Esti sigur?</div>
+        <div class="modal-text" id="modalText"></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal()">Anuleaza</button>
+            <button class="btn btn-gold" id="modalConfirmBtn">Confirma</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let pendingForm = null;
+
+function showConfirmModal(title, text, form) {
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalText').textContent = text;
+    document.getElementById('confirmModal').style.display = 'flex';
+    pendingForm = form;
+}
+
+function closeModal() {
+    document.getElementById('confirmModal').style.display = 'none';
+    pendingForm = null;
+}
+
+document.getElementById('modalConfirmBtn').addEventListener('click', function() {
+    if (pendingForm) pendingForm.submit();
+    closeModal();
+});
+
+document.getElementById('confirmModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// Auto-dismiss flash messages after 4s
+document.querySelectorAll('.flash-success, .flash-error').forEach(function(el) {
+    setTimeout(function() {
+        el.style.transition = 'opacity 0.3s, transform 0.3s';
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-8px)';
+        setTimeout(function() { el.remove(); }, 300);
+    }, 4000);
+});
+</script>
 
 </body>
 </html>

@@ -21,7 +21,7 @@
 
     <!-- Left: New Invoice Form -->
     <div class="form-card">
-        <h2>Factура Noua</h2>
+        <h2>Factura Noua</h2>
         <p class="sub">Creeaza o factura pentru un chirias.</p>
         <hr class="form-divider">
 
@@ -78,13 +78,21 @@
     <!-- Right: Invoices Table -->
     <div class="table-card">
         <div class="tc-header">
-            <div class="tc-title">Toate Facturile</div>
-            <div class="pill">{{ bills|length }} total</div>
+            <div class="tc-header-left">
+                <div class="tc-title">Facturile</div>
+                <div class="pill">{{ bills|length }} total</div>
+            </div>
+            <div class="tc-header-right">
+                <a href="/facturi" class="btn {% if status_filter == 'all' %}btn-gold{% else %}btn-ghost{% endif %} btn-sm">Toate</a>
+                <a href="/facturi?status=unpaid" class="btn {% if status_filter == 'unpaid' %}btn-gold{% else %}btn-ghost{% endif %} btn-sm">Neplatite</a>
+                <a href="/facturi?status=paid" class="btn {% if status_filter == 'paid' %}btn-gold{% else %}btn-ghost{% endif %} btn-sm">Platite</a>
+            </div>
         </div>
 
         <table>
             <thead>
                 <tr>
+                    <th>Nr.</th>
                     <th>Chirias</th>
                     <th>Descriere</th>
                     <th>Suma</th>
@@ -96,6 +104,7 @@
             <tbody>
                 {% for bill in bills %}
                 <tr>
+                    <td><div class="td-sub">{{ bill.invoice_number or '#%04d'|format(bill.id) }}</div></td>
                     <td>
                         <div class="td-strong">{{ bill.first_name }} {{ bill.last_name }}</div>
                         <div class="td-sub">Unit {{ bill.number }}</div>
@@ -132,8 +141,8 @@
                             <form action="/facturi" method="post" class="form-inline">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="bill_id" value="{{ bill.id }}">
-                                <button type="submit" class="btn-icon-only" title="Sterge factura"
-                                    onclick="return confirm('Stergi aceasta factura?')">
+                                <button type="button" class="btn-icon-only" title="Șterge factura"
+                                    onclick="showConfirmModal('Ștergere Factură', 'Ești sigur că vrei să ștergi această factură emisă?', this.closest('form'))">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                                         <polyline points="3 6 5 6 21 6"/>
                                         <path d="M19 6l-1 14H6L5 6"/>
@@ -142,16 +151,21 @@
                                     </svg>
                                 </button>
                             </form>
-                            <a href="/facturi/pdf/{{ bill.id }}" class="btn btn-ghost btn-sm" title="Descarca PDF">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                                PDF
+                            <a href="/edit_factura/{{ bill.id }}" class="btn-icon-only" title="Editeaza factura">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                            </a>
+                            <a href="/facturi/pdf/{{ bill.id }}" class="btn-icon-only" title="Descarca PDF">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                             </a>
                         </div>
                     </td>
                 </tr>
                 {% else %}
                 <tr class="empty-row">
-                    <td colspan="6">Nicio factura creata inca.</td>
+                    <td colspan="7">Nicio factura creata inca.</td>
                 </tr>
                 {% endfor %}
             </tbody>

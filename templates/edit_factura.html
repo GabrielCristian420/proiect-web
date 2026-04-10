@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block main %}
+
+<div class="form-card form-card-md">
+    <h2>Editeaza Factura</h2>
+    <p class="sub">Modifica factura pentru {{ bill.first_name }} {{ bill.last_name }} — Unitatea {{ bill.number }}.</p>
+    <hr class="form-divider">
+
+    <form action="/edit_factura/{{ bill.id }}" method="post">
+        <div class="form-group">
+            <label class="form-label">Nr. Factura</label>
+            <input class="form-control" value="{{ bill.invoice_number or '#' ~ '%04d'|format(bill.id) }}" disabled>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Descriere</label>
+            <input class="form-control" name="description" value="{{ bill.description }}" required>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Suma (RON) *</label>
+                <input class="form-control" name="amount" type="number" step="0.01" min="0" value="{{ '%.2f'|format(bill.amount) }}" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Data Scadenta *</label>
+                <input class="form-control" name="due_date" type="date" value="{{ bill.due_date }}" required>
+            </div>
+        </div>
+        <hr class="form-divider">
+        <button type="submit" class="btn btn-gold btn-full">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg>
+            Salveaza Modificarile
+        </button>
+    </form>
+</div>
+
+{% endblock %}
