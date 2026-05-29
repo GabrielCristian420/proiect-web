@@ -1,3 +1,4 @@
+<!-- Pagina de autentificare: formular login standalone, nu extinde layout.html -->
 <!DOCTYPE html>
 <html lang="ro">
 <head>
@@ -21,6 +22,7 @@
         <div class="login-title">Bun venit inapoi</div>
         <div class="login-sub">Autentifica-te pentru a accesa dashboard-ul.</div>
 
+        <!-- Mesaje flash: afiseaza erori sau confirmari dupa redirect -->
         {% with messages = get_flashed_messages() %}
           {% if messages %}
             {% for msg in messages %}
@@ -40,6 +42,7 @@
           {% endif %}
         {% endwith %}
 
+        <!-- Formular login cu username si parola, trimite POST la /login -->
         <form action="/login" method="post">
             <div class="form-group">
                 <label class="form-label">Username</label>

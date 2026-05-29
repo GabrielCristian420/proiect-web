@@ -1,7 +1,9 @@
+<!-- Dashboard principal: statistici, grafic financiar, proprietati, activitate recenta -->
 {% extends "layout.html" %}
 {% block main %}
 
 <!-- STAT CARDS -->
+<!-- Carduri statistici: venituri, unitati totale, ocupate, disponibile, tichete, restante -->
 <div class="stats-row">
     <div class="stat-card stat-highlight">
         <div class="stat-icon">
@@ -76,6 +78,7 @@
 </div>
 
 <!-- CONTRACT EXPIRY ALERTS -->
+<!-- Alerta: contracte care expira in curand (loop prin chiriasii cu contract aproape de sfarsit) -->
 {% if expiring %}
 <div class="alert-banner">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -127,6 +130,7 @@
             <div class="pill">{{ total }} unitati</div>
         </div>
         <div class="apt-grid">
+            <!-- Loop: afiseaza fiecare proprietate ca un card (ocupata sau disponibila) -->
             {% for apt in apartments %}
             <div class="apt-card">
                 <div class="apt-card-top">
@@ -175,6 +179,7 @@
             <div class="tc-title">Activitate Recenta</div>
         </div>
         <div class="activity-list">
+            <!-- Loop: ultimele facturi emise cu suma si status (platit/neplatit) -->
             {% for r in recent %}
             <div class="activity-item">
                 <div>

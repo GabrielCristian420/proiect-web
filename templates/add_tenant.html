@@ -1,3 +1,4 @@
+<!-- Pagina adaugare chirias: formular inregistrare chirias nou cu atribuire unitate -->
 {% extends "layout.html" %}
 {% block main %}
 
@@ -7,6 +8,7 @@
     <hr class="form-divider">
 
     {% if available_apts %}
+    <!-- Formular: date personale, selectie unitate, contract si chirie -->
     <form action="/add_tenant" method="post">
         <div class="form-row">
             <div class="form-group">
@@ -31,6 +33,7 @@
             <div class="select-wrap">
                 <select class="form-select" name="apartment_id" required>
                     <option value="" disabled {% if not preselect %}selected{% endif %}>Selecteaza unitate disponibila</option>
+                    <!-- Loop: afiseaza unitatile disponibile in dropdown -->
                     {% for apt in available_apts %}
                         <option value="{{ apt.id }}" {% if preselect and preselect|string == apt.id|string %}selected{% endif %}>
                             Unitate {{ apt.number }} — {{ apt.address }}
@@ -61,6 +64,7 @@
         </button>
     </form>
 
+    <!-- Stare goala: mesaj cand toate unitatile sunt ocupate -->
     {% else %}
     <div class="empty-state">
         <div class="empty-state-icon-sm">&#127968;</div>

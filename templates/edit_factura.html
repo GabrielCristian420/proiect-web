@@ -1,3 +1,4 @@
+<!-- Pagina editare factura: modifica descriere, suma si data scadenta -->
 {% extends "layout.html" %}
 {% block main %}
 
@@ -6,6 +7,7 @@
     <p class="sub">Modifica factura pentru {{ bill.first_name }} {{ bill.last_name }} — Unitatea {{ bill.number }}.</p>
     <hr class="form-divider">
 
+    <!-- Formular editare factura: campuri pre-completate, nr. factura readonly -->
     <form action="/edit_factura/{{ bill.id }}" method="post">
         <div class="form-group">
             <label class="form-label">Nr. Factura</label>
@@ -15,6 +17,7 @@
             <label class="form-label">Descriere</label>
             <input class="form-control" name="description" value="{{ bill.description }}" required>
         </div>
+        <!-- Campuri suma si data scadenta pe acelasi rand -->
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">Suma (RON) *</label>

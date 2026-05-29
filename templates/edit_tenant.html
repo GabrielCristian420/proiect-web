@@ -1,3 +1,4 @@
+<!-- Pagina editare chirias: modifica datele unui chirias existent -->
 {% extends "layout.html" %}
 {% block main %}
 
@@ -6,6 +7,7 @@
     <p class="sub">Modifica datele pentru {{ tenant.first_name }} {{ tenant.last_name }} — Unitatea {{ tenant.number }}.</p>
     <hr class="form-divider">
 
+    <!-- Formular editare: campuri pre-completate cu datele chiriasului -->
     <form action="/edit_tenant/{{ tenant.id }}" method="post">
         <div class="form-row">
             <div class="form-group">
@@ -29,6 +31,7 @@
             <label class="form-label">Unitate</label>
             <div class="select-wrap">
                 <select class="form-select" name="apartment_id">
+                    <!-- Loop: afiseaza unitatile disponibile + unitatea curenta -->
                     {% for apt in available_apts %}
                         <option value="{{ apt.id }}" {% if apt.id == tenant.apartment_id %}selected{% endif %}>
                             Unitate {{ apt.number }} — {{ apt.address }}
@@ -39,6 +42,7 @@
             </div>
         </div>
         <hr class="form-divider">
+        <!-- Sectiune contract: date inceput/sfarsit si chirie lunara -->
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">Inceput Contract</label>

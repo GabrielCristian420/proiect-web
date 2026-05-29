@@ -1,3 +1,4 @@
+<!-- Pagina setari: schimbare parola, creare utilizatori noi, lista conturi -->
 {% extends "layout.html" %}
 {% block main %}
 
@@ -6,6 +7,7 @@
         <h2>Schimba Parola</h2>
         <p class="sub">Actualizeaza parola contului tau.</p>
         <hr class="form-divider">
+        <!-- Formular schimbare parola: parola veche + parola noua + confirmare -->
         <form action="/settings" method="post">
             <input type="hidden" name="action" value="change_password">
             <div class="form-group">
@@ -29,6 +31,7 @@
         <h2>Adauga Utilizator</h2>
         <p class="sub">Creeaza un cont nou pentru un alt administrator.</p>
         <hr class="form-divider">
+        <!-- Formular creare cont nou de administrator -->
         <form action="/settings" method="post">
             <input type="hidden" name="action" value="add_user">
             <div class="form-group">
@@ -54,6 +57,7 @@
         <div class="tc-title">Utilizatori Inregistrati</div>
         <div class="pill">{{ users_list|length }} conturi</div>
     </div>
+    <!-- Tabel cu toti utilizatorii inregistrati in sistem -->
     <table>
         <thead>
             <tr>
@@ -64,6 +68,7 @@
             </tr>
         </thead>
         <tbody>
+            <!-- Loop: afiseaza fiecare utilizator (username, email, rol, data) -->
             {% for u in users_list %}
             <tr>
                 <td>

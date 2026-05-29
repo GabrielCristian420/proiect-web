@@ -1,3 +1,4 @@
+<!-- Pagina mentenanta: raportare probleme, gestionare tichete (Open/In Progress/Resolved) -->
 {% extends "layout.html" %}
 {% block main %}
 
@@ -10,6 +11,7 @@
         <hr class="form-divider">
 
         <form action="/maintenance" method="post">
+            <!-- Formular raportare problema: selectie unitate, descriere, prioritate -->
             <input type="hidden" name="action" value="create">
 
             <div class="form-group">
@@ -62,6 +64,7 @@
             </div>
         </div>
 
+        <!-- Tabel tichete active cu prioritate, status si cost -->
         <table>
             <thead>
                 <tr>
@@ -75,6 +78,7 @@
                 </tr>
             </thead>
             <tbody>
+                <!-- Loop: afiseaza fiecare tichet cu detalii si actiuni -->
                 {% for t in tickets %}
                 <tr>
                     <td><span class="td-strong">{{ t.number }}</span></td>
@@ -107,6 +111,7 @@
                     <td class="td-date">{{ t.created_at or '—' }}</td>
                     <td>
                         <div class="flex-actions">
+                        <!-- Actiuni conditionale: Preia (Open), Rezolvat+cost (In Progress), Update cost (Resolved) -->
                         {% if t.status == 'Open' %}
                             <form action="/maintenance" method="post" class="form-inline">
                                 <input type="hidden" name="action" value="in_progress">

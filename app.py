@@ -1,3 +1,9 @@
+# =============================================================================
+# app.py — RentManager: Aplicatie web pentru gestionarea chiriilor
+# Stack: Flask + PostgreSQL (psycopg2) + Flask-Login + Flask-Mail
+# Fiecare ruta logeaza actiunile in tabelul activity_log (audit trail)
+# =============================================================================
+
 import os
 from datetime import datetime, date
 
@@ -12,6 +18,7 @@ from flask_mail import Mail, Message
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
+# ReportLab — librarie pt generare PDF; optional
 try:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
@@ -23,13 +30,14 @@ except ImportError:
 
 load_dotenv()
 
+# ── Initializare aplicatie Flask ──
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-only-schimba-asta!")
 
-# ── Debug OFF in productie
+# Debug OFF in productie (se activeaza doar cu FLASK_ENV=development)
 app.config["DEBUG"] = os.environ.get("FLASK_ENV") == "development"
 
-# ── Mail
+# ── Configurare email (SMTP Gmail) ──
 app.config["MAIL_SERVER"]         = "smtp.gmail.com"
 app.config["MAIL_PORT"]           = 587
 app.config["MAIL_USE_TLS"]        = True
@@ -38,26 +46,26 @@ app.config["MAIL_PASSWORD"]       = os.environ.get("MAIL_PASSWORD")
 app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("MAIL_USERNAME")
 mail = Mail(app)
 
-# ── Upload folder (local dev); pe Render foloseste un bucket cloud
+# ── Upload fisiere (acte, contracte) ──
 UPLOAD_FOLDER      = os.path.join(os.path.dirname(__file__), "uploads")
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx"}
 MAX_FILE_MB        = 10
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ── Flask-Login
+# ── Flask-Login: gestioneaza sesiunile utilizatorilor ──
 login_manager = LoginManager(app)
 login_manager.login_view    = "login"
 login_manager.login_message = "error|Trebuie sa fii autentificat."
 
 
-# ══════════════════════════════════════════════
-# DATABASE HELPER  (replaces cs50.SQL)
-# ══════════════════════════════════════════════
+# =============================================================================
+# CONEXIUNE BAZA DE DATE (PostgreSQL)
+# =============================================================================
 
 def get_db():
-    """Open a new DB connection per request."""
+    """Deschide o conexiune noua la baza de date."""
     database_url = os.environ.get("DATABASE_URL", "")
-    # Render gives postgres:// but psycopg2 needs postgresql://
+    # Render.com da postgres:// dar psycopg2 cere postgresql://
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     conn = psycopg2.connect(database_url, cursor_factory=psycopg2.extras.RealDictCursor)
@@ -65,10 +73,9 @@ def get_db():
 
 def db_execute(query, *args):
     """
-    Run a SQL query.
-    SELECT  → returns list of dicts
-    INSERT/UPDATE/DELETE → returns None
-    Converts %s placeholders; also accepts ? for compatibility.
+    Executa un query SQL.
+    SELECT  -> returneaza lista de dict-uri
+    INSERT/UPDATE/DELETE -> returneaza None
     """
     query = query.replace("?", "%s")
     conn = get_db()
@@ -83,11 +90,12 @@ def db_execute(query, *args):
     return None
 
 
-# ══════════════════════════════════════════════
-# USER MODEL
-# ══════════════════════════════════════════════
+# =============================================================================
+# MODELUL USER (Flask-Login)
+# =============================================================================
 
 class User(UserMixin):
+    """Clasa User — Flask-Login o foloseste pt sesiuni."""
     def __init__(self, id, username, email, role):
         self.id       = id
         self.username = username
@@ -96,6 +104,7 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
+    """Callback Flask-Login: incarca userul din DB dupa ID-ul din sesiune."""
     rows = db_execute("SELECT * FROM users WHERE id = %s", int(user_id))
     if not rows:
         return None
@@ -103,11 +112,16 @@ def load_user(user_id):
     return User(u["id"], u["username"], u["email"], u["role"])
 
 
-# ── Helpers
+# =============================================================================
+# FUNCTII HELPER
+# =============================================================================
+
 def allowed_file(filename):
+    """Verifica daca extensia fisierului e permisa."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def send_email(to, subject, body):
+    """Trimite email prin Flask-Mail; esueaza silentios daca nu e configurat."""
     try:
         if app.config.get("MAIL_USERNAME"):
             msg = Message(subject, recipients=[to], body=body)
@@ -115,17 +129,39 @@ def send_email(to, subject, body):
     except Exception:
         pass
 
+def log_activity(action, category, details, target_type=None, target_id=None):
+    """
+    Inregistreaza o actiune in jurnalul de activitate (audit trail).
+    Parametri:
+        action      — tipul actiunii (create, update, delete, login, etc.)
+        category    — grupa: auth, tenant, factura, maintenance, document, user
+        details     — descriere in romana (ex: "A adaugat chirasul Ion Pop")
+        target_type — entitatea afectata (tenant, factura, etc.)
+        target_id   — ID-ul entitatii afectate
+    """
+    user_id = current_user.id if current_user.is_authenticated else None
+    username = current_user.username if current_user.is_authenticated else "system"
+    ip = request.remote_addr
+    db_execute(
+        """INSERT INTO activity_log
+           (user_id, username, action, category, target_type, target_id, details, ip_address)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+        user_id, username, action, category, target_type, target_id, details, ip
+    )
+
 @app.context_processor
 def inject_globals():
+    """Injecteaza variabile globale in toate template-urile."""
     return {"now": datetime.now(), "request": request}
 
 
-# ══════════════════════════════════════════════
-# AUTH
-# ══════════════════════════════════════════════
+# =============================================================================
+# AUTENTIFICARE (Login / Logout)
+# =============================================================================
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    """Pagina de login — autentificare cu username + parola."""
     if current_user.is_authenticated:
         return redirect("/")
     if request.method == "POST":
@@ -134,13 +170,19 @@ def login():
         if not username or not password:
             flash("error|Completeaza toate campurile.")
             return redirect("/login")
+
+        # Cauta userul in DB si verifica parola hash-uita
         rows = db_execute("SELECT * FROM users WHERE username = %s", username)
         if not rows or not check_password_hash(rows[0]["password_hash"], password):
             flash("error|Username sau parola gresita.")
             return redirect("/login")
+
         u = rows[0]
         login_user(User(u["id"], u["username"], u["email"], u["role"]),
                    remember=request.form.get("remember") == "on")
+
+        # Logare actiune: login reusit
+        log_activity("login", "auth", f"S-a autentificat in sistem")
         flash(f"success|Bun venit, {u['username']}!")
         return redirect(request.args.get("next") or "/")
     return render_template("login.html")
@@ -149,17 +191,25 @@ def login():
 @app.route("/logout")
 @login_required
 def logout():
+    """Deconecteaza utilizatorul curent."""
+    log_activity("logout", "auth", "S-a deconectat din sistem")
     logout_user()
     flash("success|Ai fost deconectat.")
     return redirect("/login")
 
 
+# =============================================================================
+# SETARI CONT (Schimbare parola + Creare utilizatori noi)
+# =============================================================================
+
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
+    """Pagina setari: schimbare parola si adaugare utilizatori noi."""
     if request.method == "POST":
         action = request.form.get("action")
 
+        # ── Schimbare parola ──
         if action == "change_password":
             old_pw  = request.form.get("old_password", "")
             new_pw  = request.form.get("new_password", "")
@@ -176,9 +226,11 @@ def settings():
                 return redirect("/settings")
             db_execute("UPDATE users SET password_hash = %s WHERE id = %s",
                        generate_password_hash(new_pw), current_user.id)
+            log_activity("change_password", "user", "Si-a schimbat parola")
             flash("success|Parola schimbata!")
             return redirect("/settings")
 
+        # ── Creare utilizator nou ──
         if action == "add_user":
             uname  = request.form.get("new_username", "").strip()
             uemail = request.form.get("new_email", "").strip()
@@ -192,6 +244,7 @@ def settings():
                 return redirect("/settings")
             db_execute("INSERT INTO users (username, email, password_hash) VALUES (%s, %s, %s)",
                        uname, uemail, generate_password_hash(upw))
+            log_activity("create", "user", f"A creat contul {uname}", "user")
             flash(f"success|Utilizatorul {uname} creat.")
             return redirect("/settings")
 
@@ -199,13 +252,15 @@ def settings():
     return render_template("settings.html", users_list=users_list)
 
 
-# ══════════════════════════════════════════════
-# DASHBOARD
-# ══════════════════════════════════════════════
+# =============================================================================
+# DASHBOARD (Pagina principala)
+# =============================================================================
 
 @app.route("/")
 @login_required
 def index():
+    """Dashboard-ul principal — statistici, grafic, alerte, unitati."""
+    # Interogare complexa: apartamente + chirias activ + nr facturi neplatite + tichete deschise
     apartments = db_execute("""
         SELECT a.id, a.number, a.address, a.status,
                t.first_name, t.last_name, t.id AS tenant_id,
@@ -220,24 +275,27 @@ def index():
     occupied = sum(1 for a in apartments if a["status"] == "Rented")
     vacant   = total - occupied
 
+    # Statistici globale
     open_tickets = db_execute("SELECT COUNT(*) AS cnt FROM maintenance WHERE status != 'Resolved'")[0]["cnt"]
     unpaid_data  = db_execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(amount), 0) AS total_ron FROM facturi WHERE status = 'Unpaid'")[0]
     unpaid_bills = unpaid_data["cnt"]
     unpaid_ron   = unpaid_data["total_ron"]
 
+    # Venit luna curenta (facturi platite)
     this_month = date.today().strftime("%Y-%m")
     revenue = db_execute(
         "SELECT COALESCE(SUM(amount), 0) AS total FROM facturi WHERE status='Paid' AND paid_at::text LIKE %s",
         f"{this_month}%"
     )[0]["total"]
 
+    # Ultimele 5 facturi (pt lista activitate recenta)
     recent = db_execute("""
         SELECT f.amount, f.status, f.due_date, t.first_name, t.last_name
         FROM facturi f JOIN tenants t ON f.tenant_id = t.id
         ORDER BY f.id DESC LIMIT 5
     """)
 
-    # Contract expiry alerts (next 30 days)
+    # Alerte contracte care expira in 30 zile
     expiring = db_execute("""
         SELECT t.first_name, t.last_name, t.contract_end, a.number
         FROM tenants t JOIN apartments a ON t.apartment_id = a.id
@@ -246,7 +304,7 @@ def index():
         ORDER BY t.contract_end
     """)
 
-    # Chart data: last 6 months revenue vs maintenance costs
+    # Date grafic: venit vs cheltuieli ultimele 6 luni
     chart_data = db_execute("""
         SELECT months.m AS month,
                COALESCE((SELECT SUM(f.amount) FROM facturi f WHERE f.status='Paid'
@@ -263,7 +321,7 @@ def index():
     chart_income = [float(r["income"]) for r in chart_data]
     chart_expenses = [float(r["expenses"]) for r in chart_data]
 
-    # Total maintenance costs this month
+    # Profit = venit - cheltuieli mentenanta luna curenta
     maint_costs = db_execute(
         "SELECT COALESCE(SUM(cost), 0) AS total FROM maintenance WHERE status='Resolved' AND TO_CHAR(created_at, 'YYYY-MM') = %s",
         this_month
@@ -280,10 +338,14 @@ def index():
     )
 
 
+# =============================================================================
+# GENERARE FACTURI IN MASA (Bulk Invoice)
+# =============================================================================
+
 @app.route("/bulk_invoice", methods=["POST"])
 @login_required
 def bulk_invoice():
-    """Generate invoices for all active tenants with rent_amount set."""
+    """Genereaza facturi automat pt toti chiriasii activi cu chiria setata."""
     tenants_with_rent = db_execute("""
         SELECT t.id, t.first_name, t.last_name, t.rent_amount, t.email, a.number
         FROM tenants t JOIN apartments a ON t.apartment_id = a.id
@@ -296,7 +358,7 @@ def bulk_invoice():
     month_name = date.today().strftime("%B %Y")
     year = date.today().year
     for t in tenants_with_rent:
-        # Check if invoice already exists this month for this tenant
+        # Verifica daca factura exista deja luna asta pt acest chirias
         existing = db_execute(
             "SELECT id FROM facturi WHERE tenant_id = %s AND TO_CHAR(created_at, 'YYYY-MM') = %s",
             t["id"], date.today().strftime("%Y-%m")
@@ -313,22 +375,27 @@ def bulk_invoice():
         send_email(t["email"], f"Factura noua {invoice_number}",
             f"Buna ziua {t['first_name']},\n\nAi o factura noua ({invoice_number}) de {t['rent_amount']} RON.\nData scadenta: {due_date}.\n\nRentManager")
         count += 1
+
     if count > 0:
+        log_activity("bulk_create", "factura", f"A generat {count} facturi automat pentru {month_name}")
         flash(f"success|{count} facturi generate automat pentru luna curenta!")
     else:
         flash("error|Toate facturile pe luna asta au fost deja generate.")
     return redirect("/")
 
 
-# ══════════════════════════════════════════════
-# TENANTS
-# ══════════════════════════════════════════════
+# =============================================================================
+# CHIRIASI (CRUD)
+# =============================================================================
 
 @app.route("/tenants")
 @login_required
 def tenants():
+    """Lista chiriasi — cu cautare si filtru activi/inactivi."""
     search = request.args.get("q", "").strip()
     show_inactive = request.args.get("show_inactive") == "1"
+
+    # Query dinamic cu filtre optionale
     base = """
         SELECT t.id, t.first_name, t.last_name, t.email, t.phone,
                t.is_active, t.contract_end, t.rent_amount,
@@ -355,6 +422,7 @@ def tenants():
 @app.route("/add_tenant", methods=["GET", "POST"])
 @login_required
 def add_tenant():
+    """Formular adaugare chirias nou + alocare apartament."""
     if request.method == "POST":
         fname  = request.form.get("first_name", "").strip()
         lname  = request.form.get("last_name", "").strip()
@@ -367,25 +435,35 @@ def add_tenant():
         if not fname or not lname or not email or not apt_id:
             flash("error|Completeaza toate campurile obligatorii.")
             return redirect("/add_tenant")
-        # Check apartment is truly available
+
+        # Verifica daca apartamentul e liber
         apt_check = db_execute("SELECT status FROM apartments WHERE id = %s", apt_id)
         if apt_check and apt_check[0]["status"] != "Available":
             flash("error|Aceasta unitate este deja ocupata.")
             return redirect("/add_tenant")
+
         result = db_execute(
             "INSERT INTO tenants (first_name, last_name, email, phone, apartment_id, contract_start, contract_end, rent_amount) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
             fname, lname, email, phone, apt_id, contract_start, contract_end, rent_amount
         )
+        # Marcheaza apartamentul ca inchiriat
         db_execute("UPDATE apartments SET status = 'Rented' WHERE id = %s", apt_id)
         apt = db_execute("SELECT number, address FROM apartments WHERE id = %s", apt_id)[0]
+
+        # Trimite email de bun venit
         send_email(email, "Bun venit la RentManager!",
             f"Buna ziua {fname},\n\nContractul tau pentru Unitatea {apt['number']} ({apt['address']}) a fost activat.\n\nEchipa RentManager")
-        flash(f"success|Chiriasul {fname} {lname} a fost adaugat! Incarca actele de contract.")
-        # Get new tenant id for redirect
+
+        # Ia ID-ul noului chirias pt redirect si log
         new_t = db_execute("SELECT id FROM tenants WHERE first_name=%s AND last_name=%s AND apartment_id=%s ORDER BY id DESC LIMIT 1", fname, lname, apt_id)
+        new_id = new_t[0]["id"] if new_t else None
+        log_activity("create", "tenant", f"A adaugat chirasul {fname} {lname} in Unitatea {apt['number']}", "tenant", new_id)
+
+        flash(f"success|Chiriasul {fname} {lname} a fost adaugat! Incarca actele de contract.")
         if new_t:
             return redirect(f"/acte/{new_t[0]['id']}")
         return redirect("/tenants")
+
     preselect = request.args.get("apt")
     available_apts = db_execute("SELECT * FROM apartments WHERE status = 'Available'")
     return render_template("add_tenant.html", available_apts=available_apts, preselect=preselect)
@@ -394,7 +472,7 @@ def add_tenant():
 @app.route("/delete_tenant", methods=["POST"])
 @login_required
 def delete_tenant():
-    """Soft delete: deactivate tenant, free apartment, keep history."""
+    """Dezactiveaza chirias (soft delete) — pastreaza istoricul."""
     tenant_id = request.form.get("tenant_id")
     rows = db_execute("SELECT * FROM tenants WHERE id = %s", tenant_id)
     if not rows:
@@ -403,16 +481,17 @@ def delete_tenant():
     t      = rows[0]
     apt_id = t["apartment_id"]
     name   = f"{t['first_name']} {t['last_name']}"
-    
-    # Validation: Cannot deactivate if they have unpaid invoices
+
+    # Nu poti dezactiva daca are facturi neplatite
     unpaid = db_execute("SELECT COUNT(*) as cnt FROM facturi WHERE tenant_id = %s AND status = 'Unpaid'", tenant_id)[0]["cnt"]
     if unpaid > 0:
         flash("error|Nu poți dezactiva un chiriaș cu facturi neplătite. Șterge sau marchează-le ca plătite mai întâi.")
         return redirect("/tenants")
-        
-    # Soft delete: mark inactive, keep all data
+
+    # Soft delete + elibereaza apartamentul
     db_execute("UPDATE tenants SET is_active = FALSE WHERE id = %s", tenant_id)
     db_execute("UPDATE apartments SET status = 'Available' WHERE id = %s", apt_id)
+    log_activity("deactivate", "tenant", f"A dezactivat chirasul {name}", "tenant", int(tenant_id))
     flash(f"success|{name} dezactivat. Apartamentul este disponibil. Istoricul a fost pastrat.")
     return redirect("/tenants")
 
@@ -420,6 +499,7 @@ def delete_tenant():
 @app.route("/edit_tenant/<int:tenant_id>", methods=["GET", "POST"])
 @login_required
 def edit_tenant(tenant_id):
+    """Formular editare chirias — date personale + mutare apartament."""
     tenant = db_execute("""
         SELECT t.*, a.number, a.address FROM tenants t
         JOIN apartments a ON t.apartment_id = a.id WHERE t.id = %s
@@ -440,20 +520,23 @@ def edit_tenant(tenant_id):
         if not fname or not lname or not email:
             flash("error|Completeaza toate campurile obligatorii.")
             return redirect(f"/edit_tenant/{tenant_id}")
-        # Handle apartment change
+
+        # Gestionare mutare apartament
         if new_apt_id and int(new_apt_id) != t["apartment_id"]:
             db_execute("UPDATE apartments SET status = 'Available' WHERE id = %s", t["apartment_id"])
             db_execute("UPDATE apartments SET status = 'Rented' WHERE id = %s", new_apt_id)
         else:
             new_apt_id = t["apartment_id"]
+
         db_execute("""
             UPDATE tenants SET first_name=%s, last_name=%s, email=%s, phone=%s,
                 apartment_id=%s, contract_start=%s, contract_end=%s, rent_amount=%s
             WHERE id = %s
         """, fname, lname, email, phone, new_apt_id, contract_start, contract_end, rent_amount, tenant_id)
+        log_activity("update", "tenant", f"A editat chirasul {fname} {lname}", "tenant", tenant_id)
         flash(f"success|Chiriasul {fname} {lname} a fost actualizat!")
         return redirect("/tenants")
-    # GET: show form with current values
+
     available_apts = db_execute("SELECT * FROM apartments WHERE status = 'Available' OR id = %s", t["apartment_id"])
     return render_template("edit_tenant.html", tenant=t, available_apts=available_apts)
 
@@ -461,6 +544,7 @@ def edit_tenant(tenant_id):
 @app.route("/edit_factura/<int:bill_id>", methods=["GET", "POST"])
 @login_required
 def edit_factura(bill_id):
+    """Formular editare factura — suma, descriere, data scadenta."""
     bill = db_execute("""
         SELECT f.*, t.first_name, t.last_name, a.number
         FROM facturi f JOIN tenants t ON f.tenant_id = t.id
@@ -482,18 +566,20 @@ def edit_factura(bill_id):
             return redirect(f"/edit_factura/{bill_id}")
         db_execute("UPDATE facturi SET amount=%s, description=%s, due_date=%s WHERE id=%s",
                    amount, description, due_date, bill_id)
+        log_activity("update", "factura", f"A editat factura #{bill_id} ({amount} RON)", "factura", bill_id)
         flash("success|Factura actualizata!")
         return redirect("/facturi")
     return render_template("edit_factura.html", bill=b)
 
 
-# ══════════════════════════════════════════════
-# ACTE
-# ══════════════════════════════════════════════
+# =============================================================================
+# ACTE / DOCUMENTE (Upload, Download, Stergere)
+# =============================================================================
 
 @app.route("/acte/<int:tenant_id>")
 @login_required
 def acte(tenant_id):
+    """Lista documente (acte) pt un chirias."""
     tenant = db_execute("""
         SELECT t.id, t.first_name, t.last_name, a.number
         FROM tenants t JOIN apartments a ON t.apartment_id = a.id
@@ -509,6 +595,7 @@ def acte(tenant_id):
 @app.route("/acte/upload/<int:tenant_id>", methods=["POST"])
 @login_required
 def upload_act(tenant_id):
+    """Incarca un document (contract, act, etc.) pt un chirias."""
     doc_type = request.form.get("doc_type", "Altele").strip()
     notes    = request.form.get("notes", "").strip()
     if "file" not in request.files or request.files["file"].filename == "":
@@ -518,18 +605,25 @@ def upload_act(tenant_id):
     if not allowed_file(file.filename):
         flash("error|Tip de fisier nepermis. Acceptam: PDF, JPG, PNG, DOC, DOCX.")
         return redirect(f"/acte/{tenant_id}")
-    # Check file size
+
+    # Verificare dimensiune fisier
     file.seek(0, 2)
     size_mb = file.tell() / (1024 * 1024)
     file.seek(0)
     if size_mb > MAX_FILE_MB:
         flash(f"error|Fisierul este prea mare. Maxim {MAX_FILE_MB}MB.")
         return redirect(f"/acte/{tenant_id}")
+
     safe     = secure_filename(f"{tenant_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}")
     filepath = os.path.join(UPLOAD_FOLDER, safe)
     file.save(filepath)
     db_execute("INSERT INTO acte (tenant_id, doc_type, filename, original_name, notes) VALUES (%s, %s, %s, %s, %s)",
                tenant_id, doc_type, safe, file.filename, notes)
+
+    # Logare: cine a incarcat ce document
+    t_info = db_execute("SELECT first_name, last_name FROM tenants WHERE id = %s", tenant_id)
+    t_name = f"{t_info[0]['first_name']} {t_info[0]['last_name']}" if t_info else f"#{tenant_id}"
+    log_activity("upload", "document", f"A incarcat '{file.filename}' ({doc_type}) pt {t_name}", "document", tenant_id)
     flash("success|Documentul a fost incarcat!")
     return redirect(f"/acte/{tenant_id}")
 
@@ -537,22 +631,36 @@ def upload_act(tenant_id):
 @app.route("/acte/download/<int:doc_id>")
 @login_required
 def download_act(doc_id):
+    """Descarca un document — logeaza descarcarea in audit trail."""
     doc = db_execute("SELECT * FROM acte WHERE id = %s", doc_id)
     if not doc:
         abort(404)
-    return send_from_directory(UPLOAD_FOLDER, doc[0]["filename"],
-                               as_attachment=True, download_name=doc[0]["original_name"])
+    d = doc[0]
+    # Logare: cine a descarcat documentul
+    t_info = db_execute("SELECT first_name, last_name FROM tenants WHERE id = %s", d["tenant_id"])
+    t_name = f"{t_info[0]['first_name']} {t_info[0]['last_name']}" if t_info else f"#{d['tenant_id']}"
+    log_activity("download", "document", f"A descarcat '{d['original_name']}' al lui {t_name}", "document", doc_id)
+    return send_from_directory(UPLOAD_FOLDER, d["filename"],
+                               as_attachment=True, download_name=d["original_name"])
 
 
 @app.route("/acte/delete/<int:doc_id>", methods=["POST"])
 @login_required
 def delete_act(doc_id):
+    """Sterge un document — din DB si de pe disc."""
     doc = db_execute("SELECT * FROM acte WHERE id = %s", doc_id)
     if not doc:
         flash("error|Documentul nu a fost gasit.")
         return redirect("/tenants")
-    tenant_id = doc[0]["tenant_id"]
-    fpath = os.path.join(UPLOAD_FOLDER, doc[0]["filename"])
+    d = doc[0]
+    tenant_id = d["tenant_id"]
+
+    # Logare inainte de stergere (sa avem datele inca)
+    t_info = db_execute("SELECT first_name, last_name FROM tenants WHERE id = %s", tenant_id)
+    t_name = f"{t_info[0]['first_name']} {t_info[0]['last_name']}" if t_info else f"#{tenant_id}"
+    log_activity("delete", "document", f"A sters documentul '{d['original_name']}' al lui {t_name}", "document", doc_id)
+
+    fpath = os.path.join(UPLOAD_FOLDER, d["filename"])
     if os.path.exists(fpath):
         os.remove(fpath)
     db_execute("DELETE FROM acte WHERE id = %s", doc_id)
@@ -560,26 +668,35 @@ def delete_act(doc_id):
     return redirect(f"/acte/{tenant_id}")
 
 
-# ══════════════════════════════════════════════
-# FACTURI
-# ══════════════════════════════════════════════
+# =============================================================================
+# FACTURI (Creare, Plata, Stergere, Export PDF)
+# =============================================================================
 
 @app.route("/facturi", methods=["GET", "POST"])
 @login_required
 def facturi():
+    """Gestionare facturi: creare, marcare platita, stergere, filtrare."""
     if request.method == "POST":
         action = request.form.get("action", "create")
+
+        # ── Marcare factura ca platita ──
         if action == "pay":
             bill_id = request.form.get("bill_id")
             db_execute("UPDATE facturi SET status='Paid', paid_at=%s WHERE id=%s",
                        date.today().isoformat(), bill_id)
+            log_activity("pay", "factura", f"A marcat factura #{bill_id} ca platita", "factura", int(bill_id))
             flash("success|Factura marcata ca platita.")
             return redirect("/facturi")
+
+        # ── Stergere factura ──
         if action == "delete":
             bill_id = request.form.get("bill_id")
+            log_activity("delete", "factura", f"A sters factura #{bill_id}", "factura", int(bill_id))
             db_execute("DELETE FROM facturi WHERE id = %s", bill_id)
             flash("success|Factura stearsa.")
             return redirect("/facturi")
+
+        # ── Creare factura noua ──
         tenant_id   = request.form.get("tenant_id")
         amount      = request.form.get("amount")
         description = request.form.get("description", "Chirie lunara").strip()
@@ -593,12 +710,15 @@ def facturi():
         if due_date < date.today().isoformat():
             flash("error|Data scadentă nu poate fi în trecut.")
             return redirect("/facturi")
-        # Generate sequential invoice number
+
+        # Generare numar factura secvential (RM-2026-001)
         year = date.today().year
         last = db_execute("SELECT COUNT(*) AS cnt FROM facturi WHERE EXTRACT(YEAR FROM created_at) = %s", year)[0]["cnt"]
         invoice_number = f"RM-{year}-{last + 1:03d}"
         db_execute("INSERT INTO facturi (tenant_id, amount, description, due_date, status, invoice_number) VALUES (%s, %s, %s, %s, 'Unpaid', %s)",
                    tenant_id, amount, description, due_date, invoice_number)
+
+        # Trimite email chiriasuluinotificare
         t = db_execute("""
             SELECT t.email, t.first_name, a.number FROM tenants t
             JOIN apartments a ON t.apartment_id = a.id WHERE t.id = %s
@@ -606,10 +726,12 @@ def facturi():
         if t:
             send_email(t[0]["email"], f"Factura noua {invoice_number} - {description}",
                 f"Buna ziua {t[0]['first_name']},\n\nAi o factura noua ({invoice_number}) de {amount} RON.\nData scadenta: {due_date}.\n\nRentManager")
+
+        log_activity("create", "factura", f"A creat factura {invoice_number} de {amount} RON", "factura")
         flash(f"success|Factura {invoice_number} creata!")
         return redirect("/facturi")
 
-    # Filters
+    # GET — lista facturi cu filtre
     status_filter = request.args.get("status", "all")
     base_query = """
         SELECT f.id, f.amount, f.description, f.due_date, f.status, f.paid_at, f.invoice_number,
@@ -641,6 +763,7 @@ def facturi():
 @app.route("/facturi/pdf/<int:bill_id>")
 @login_required
 def export_factura_pdf(bill_id):
+    """Genereaza PDF pt o factura — logeaza descarcarea."""
     if not PDF_AVAILABLE:
         flash("error|ReportLab nu este instalat.")
         return redirect("/facturi")
@@ -652,6 +775,12 @@ def export_factura_pdf(bill_id):
     if not bill:
         abort(404)
     b = bill[0]
+
+    # Logare descarcare PDF factura
+    log_activity("download", "factura",
+                 f"A descarcat PDF factura #{bill_id} ({b['first_name']} {b['last_name']}, {b['amount']} RON)",
+                 "factura", bill_id)
+
     from io import BytesIO
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=50, leftMargin=50, topMargin=60, bottomMargin=50)
@@ -693,32 +822,44 @@ def export_factura_pdf(bill_id):
     return response
 
 
-# ══════════════════════════════════════════════
-# MAINTENANCE
-# ══════════════════════════════════════════════
+# =============================================================================
+# MENTENANTA (Tichete de reparatii)
+# =============================================================================
 
 @app.route("/maintenance", methods=["GET", "POST"])
 @login_required
 def maintenance():
+    """Gestionare tichete mentenanta: creare, preluare, rezolvare."""
     if request.method == "POST":
         action = request.form.get("action", "create")
+
+        # ── Rezolvare tichet ──
         if action == "resolve":
             ticket_id = request.form.get("ticket_id")
             cost = request.form.get("cost", 0)
             db_execute("UPDATE maintenance SET status='Resolved', cost=%s WHERE id=%s", cost or 0, ticket_id)
+            log_activity("resolve", "maintenance", f"A rezolvat tichetul #{ticket_id} (cost: {cost} RON)", "maintenance", int(ticket_id))
             flash("success|Tichetul a fost rezolvat.")
             return redirect("/maintenance")
+
+        # ── Preluare tichet (In Progress) ──
         if action == "in_progress":
             ticket_id = request.form.get("ticket_id")
             db_execute("UPDATE maintenance SET status='In Progress' WHERE id=%s", ticket_id)
+            log_activity("in_progress", "maintenance", f"A preluat tichetul #{ticket_id}", "maintenance", int(ticket_id))
             flash("success|Tichetul a fost preluat.")
             return redirect("/maintenance")
+
+        # ── Actualizare cost ──
         if action == "update_cost":
             ticket_id = request.form.get("ticket_id")
             cost = request.form.get("cost", 0)
             db_execute("UPDATE maintenance SET cost=%s WHERE id=%s", cost or 0, ticket_id)
+            log_activity("update_cost", "maintenance", f"A actualizat costul tichetului #{ticket_id} la {cost} RON", "maintenance", int(ticket_id))
             flash("success|Costul a fost actualizat cu succes.")
             return redirect("/maintenance")
+
+        # ── Creare tichet nou ──
         apt_id   = request.form.get("apartment_id")
         desc     = request.form.get("description", "").strip()
         priority = request.form.get("priority", "Medium")
@@ -727,8 +868,13 @@ def maintenance():
             return redirect("/maintenance")
         db_execute("INSERT INTO maintenance (apartment_id, description, priority, status) VALUES (%s, %s, %s, 'Open')",
                    apt_id, desc, priority)
+        apt = db_execute("SELECT number FROM apartments WHERE id = %s", apt_id)
+        apt_nr = apt[0]["number"] if apt else apt_id
+        log_activity("create", "maintenance", f"A creat tichet mentenanta pt Unitatea {apt_nr}: {desc[:60]}", "maintenance")
         flash("success|Tichetul a fost trimis.")
         return redirect("/maintenance")
+
+    # GET — lista tichete sortate: Open > In Progress > Resolved, apoi dupa prioritate
     tickets    = db_execute("""
         SELECT m.id, a.number, m.description, m.priority, m.status, m.created_at, m.cost
         FROM maintenance m JOIN apartments a ON m.apartment_id = a.id
@@ -737,3 +883,48 @@ def maintenance():
     """)
     apartments = db_execute("SELECT id, number FROM apartments")
     return render_template("maintenance.html", tickets=tickets, apartments=apartments)
+
+
+# =============================================================================
+# JURNAL ACTIVITATE / AUDIT TRAIL
+# =============================================================================
+
+@app.route("/activity-log")
+@login_required
+def activity_log():
+    """Pagina Audit Trail — jurnal complet cu filtre si paginare."""
+    category = request.args.get("category", "all")
+    search   = request.args.get("q", "").strip()
+    page     = max(1, int(request.args.get("page", 1)))
+    per_page = 25
+
+    # Construire query dinamic cu filtre
+    base = "SELECT * FROM activity_log"
+    where_clauses = []
+    params = []
+
+    if category != "all":
+        where_clauses.append("category = %s")
+        params.append(category)
+    if search:
+        where_clauses.append("(details ILIKE %s OR username ILIKE %s)")
+        like = f"%{search}%"
+        params.extend([like, like])
+
+    if where_clauses:
+        base += " WHERE " + " AND ".join(where_clauses)
+
+    # Total pt paginare
+    count_q = base.replace("SELECT *", "SELECT COUNT(*) AS cnt", 1)
+    total = db_execute(count_q, *params)[0]["cnt"]
+
+    # Query paginat, ordonat descrescator
+    base += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+    params.extend([per_page, (page - 1) * per_page])
+    logs = db_execute(base, *params)
+
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    return render_template("activity_log.html",
+        logs=logs, category=category, search=search,
+        page=page, total_pages=total_pages, total=total)

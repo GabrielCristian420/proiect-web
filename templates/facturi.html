@@ -1,6 +1,8 @@
+<!-- Pagina facturi: creare facturi noi, vizualizare lista, marcare plata, stergere -->
 {% extends "layout.html" %}
 {% block main %}
 
+<!-- Carduri sumar: total neplatit (rosu) si total incasat (verde) -->
 <!-- Summary Cards -->
 <div class="invoice-summary">
     <div class="inv-sum-card danger-card">
@@ -26,6 +28,7 @@
         <hr class="form-divider">
 
         {% if tenants %}
+        <!-- Formular creare factura: selectie chirias, suma, scadenta -->
         <form action="/facturi" method="post">
             <input type="hidden" name="action" value="create">
 
@@ -102,6 +105,7 @@
                 </tr>
             </thead>
             <tbody>
+                <!-- Loop: afiseaza fiecare factura cu nr, chirias, suma, status -->
                 {% for bill in bills %}
                 <tr>
                     <td><div class="td-sub">{{ bill.invoice_number or '#%04d'|format(bill.id) }}</div></td>
@@ -128,6 +132,7 @@
                     </td>
                     <td>
                         <div class="flex-actions">
+                            <!-- Actiuni: buton platit, stergere cu confirmare, editare, descarcare PDF -->
                             {% if bill.status == "Unpaid" %}
                             <form action="/facturi" method="post" class="form-inline">
                                 <input type="hidden" name="action" value="pay">

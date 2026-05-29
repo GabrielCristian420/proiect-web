@@ -1,3 +1,4 @@
+<!-- Pagina chiriasi: tabel cu toti chiriasii, cautare, filtrare activi/inactivi -->
 {% extends "layout.html" %}
 {% block main %}
 
@@ -8,6 +9,7 @@
             <div class="pill">{{ tenants|length }} total</div>
         </div>
         <div class="tc-header-right">
+            <!-- Cautare si filtre: search inline + toggle activi/inactivi + buton adaugare -->
             <form class="search-inline" method="get" action="/tenants">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input class="search-input" name="q" placeholder="Cauta..." value="{{ search }}">
@@ -27,6 +29,7 @@
             </a>
         </div>
     </div>
+    <!-- Tabel cu lista tuturor chiriasilor: nume, contact, unitate, contract, chirie -->
     <table>
         <thead>
             <tr>
@@ -41,6 +44,7 @@
             </tr>
         </thead>
         <tbody>
+            <!-- Loop: afiseaza fiecare chirias cu detalii si actiuni (editare/eliberare) -->
             {% for t in tenants %}
             <tr {% if not t.is_active %}style="opacity: 0.5;"{% endif %}>
                 <td>
@@ -92,6 +96,7 @@
                             </svg>
                             Editeaza
                         </a>
+                        <!-- Buton eliberare unitate cu modal de confirmare -->
                         <form class="form-inline" action="/delete_tenant" method="post"
                               onsubmit="event.preventDefault(); showConfirmModal('Eliberare Unitate', 'Dezactivezi chiriașul {{ t.first_name }} {{ t.last_name }}? Apartamentul va fi eliberat, dar istoricul ramâne.', this);">
                             <input type="hidden" name="tenant_id" value="{{ t.id }}">

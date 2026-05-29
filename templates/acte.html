@@ -1,3 +1,4 @@
+<!-- Pagina acte: incarcare si gestionare documente per chirias (contracte, buletine, etc.) -->
 {% extends "layout.html" %}
 {% block main %}
 
@@ -20,6 +21,7 @@
         <p class="sub">Adauga un document pentru acest chirias.</p>
         <hr class="form-divider">
 
+        <!-- Formular upload: selectie tip document, fisier drag&drop, observatii -->
         <form action="/acte/upload/{{ tenant.id }}" method="post" enctype="multipart/form-data">
             <div class="form-group">
                 <label class="form-label">Tip Document *</label>
@@ -77,6 +79,7 @@
             <div class="tc-title">Documente Incarcate</div>
             <div class="pill">{{ docs|length }} total</div>
         </div>
+        <!-- Tabel documente incarcate cu tip, fisier, observatii si actiuni -->
         <table>
             <thead>
                 <tr>
@@ -88,6 +91,7 @@
                 </tr>
             </thead>
             <tbody>
+                <!-- Loop: afiseaza fiecare document cu extensie, tip si data -->
                 {% for doc in docs %}
                 <tr>
                     <td>
@@ -116,6 +120,7 @@
                                 </svg>
                                 Descarca
                             </a>
+                            <!-- Buton stergere document cu modal de confirmare -->
                             <form class="form-inline" action="/acte/delete/{{ doc.id }}" method="post"
                                   onsubmit="event.preventDefault(); showConfirmModal('Ștergere Document', 'Ești sigur că vrei să ștergi documentul {{ doc.original_name }}?', this);">
                                 <button type="submit" class="btn-icon-only" title="Sterge">

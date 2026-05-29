@@ -1,6 +1,8 @@
 """
+init_db.py — Script de initializare a bazei de date PostgreSQL
 Ruleaza o singura data dupa ce ai setat DATABASE_URL in .env:
     python init_db.py
+Creeaza toate tabelele necesare si un cont admin default.
 """
 import os
 import psycopg2
@@ -23,6 +25,7 @@ c = conn.cursor()
 
 print("Creez tabelele...")
 
+# Tabelul users — conturile de admin ale aplicatiei
 c.execute("""
 CREATE TABLE IF NOT EXISTS users (
     id            SERIAL PRIMARY KEY,
@@ -34,6 +37,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 """)
 
+# Tabelul apartments — unitatile imobiliare gestionate
 c.execute("""
 CREATE TABLE IF NOT EXISTS apartments (
     id      SERIAL PRIMARY KEY,
@@ -43,6 +47,7 @@ CREATE TABLE IF NOT EXISTS apartments (
 );
 """)
 
+# Tabelul tenants — chiriasii (legati de un apartament prin FK)
 c.execute("""
 CREATE TABLE IF NOT EXISTS tenants (
     id           SERIAL PRIMARY KEY,
@@ -55,6 +60,7 @@ CREATE TABLE IF NOT EXISTS tenants (
 );
 """)
 
+# Tabelul maintenance — tichete de mentenanta/reparatii
 c.execute("""
 CREATE TABLE IF NOT EXISTS maintenance (
     id           SERIAL PRIMARY KEY,
@@ -66,6 +72,7 @@ CREATE TABLE IF NOT EXISTS maintenance (
 );
 """)
 
+# Tabelul acte — documente incarcate (contracte, acte, etc.)
 c.execute("""
 CREATE TABLE IF NOT EXISTS acte (
     id            SERIAL PRIMARY KEY,
@@ -78,6 +85,7 @@ CREATE TABLE IF NOT EXISTS acte (
 );
 """)
 
+# Tabelul facturi — facturile emise catre chiriasi
 c.execute("""
 CREATE TABLE IF NOT EXISTS facturi (
     id          SERIAL PRIMARY KEY,
@@ -91,9 +99,30 @@ CREATE TABLE IF NOT EXISTS facturi (
 );
 """)
 
+# Tabelul activity_log — jurnal de activitate (audit trail)
+# Inregistreaza toate actiunile adminilor: cine, ce, cand, de unde (IP)
+c.execute("""
+CREATE TABLE IF NOT EXISTS activity_log (
+    id          SERIAL PRIMARY KEY,
+    user_id     INTEGER REFERENCES users(id),
+    username    TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    category    TEXT NOT NULL DEFAULT 'general',
+    target_type TEXT,
+    target_id   INTEGER,
+    details     TEXT,
+    ip_address  TEXT,
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+""")
+
+# Indexuri pt performanta la filtrare si sortare
+c.execute("CREATE INDEX IF NOT EXISTS idx_activity_log_category ON activity_log(category);")
+c.execute("CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at DESC);")
+
 print("✅ Tabele create.")
 
-# Admin user
+# Cont admin default
 c.execute("SELECT COUNT(*) FROM users")
 if c.fetchone()[0] == 0:
     hashed = generate_password_hash("admin123")
@@ -102,7 +131,7 @@ if c.fetchone()[0] == 0:
     print("✅ Admin creat — username: admin  parola: admin123")
     print("   ⚠️  SCHIMBA PAROLA dupa primul login!")
 
-# Sample data
+# Date de test (doar daca nu exista apartamente)
 c.execute("SELECT COUNT(*) FROM apartments")
 if c.fetchone()[0] == 0:
     c.execute("""

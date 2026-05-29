@@ -1,0 +1,163 @@
+{% extends "layout.html" %}
+{% block main %}
+
+{# ── Category mappings ─────────────────────────────────────────── #}
+{% set cat_icons = {
+    'auth': '🔑',
+    'tenant': '👤',
+    'factura': '📄',
+    'maintenance': '🔧',
+    'document': '📎',
+    'user': '⚙️'
+} %}
+
+{% set cat_labels = {
+    'auth': 'Autentificare',
+    'tenant': 'Chirias',
+    'factura': 'Factura',
+    'maintenance': 'Mentenanta',
+    'document': 'Document',
+    'user': 'Utilizator'
+} %}
+
+{% set cat_badge = {
+    'auth': 'badge-auth',
+    'tenant': 'badge-tenant',
+    'factura': 'badge-factura',
+    'maintenance': 'badge-maintenance',
+    'document': 'badge-document',
+    'user': 'badge-user'
+} %}
+
+<!-- ── HEADER ────────────────────────────────────────────────── -->
+<div class="section-header" style="margin-bottom: 20px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+        <h1 class="section-title" style="font-size:20px;">Jurnal Activitate</h1>
+        <span class="pill">{{ total }} înregistrări</span>
+    </div>
+</div>
+
+<!-- ── FILTER TABS ───────────────────────────────────────────── -->
+<div class="filter-tabs">
+    <a href="/activity-log?category=all{% if search %}&q={{ search }}{% endif %}"
+       class="filter-tab {% if category == 'all' %}active{% endif %}">Toate</a>
+    <a href="/activity-log?category=auth{% if search %}&q={{ search }}{% endif %}"
+       class="filter-tab {% if category == 'auth' %}active{% endif %}">Autentificare</a>
+    <a href="/activity-log?category=tenant{% if search %}&q={{ search }}{% endif %}"
+       class="filter-tab {% if category == 'tenant' %}active{% endif %}">Chiriasi</a>
+    <a href="/activity-log?category=factura{% if search %}&q={{ search }}{% endif %}"
+       class="filter-tab {% if category == 'factura' %}active{% endif %}">Facturi</a>
+    <a href="/activity-log?category=maintenance{% if search %}&q={{ search }}{% endif %}"
+       class="filter-tab {% if category == 'maintenance' %}active{% endif %}">Mentenanta</a>
+    <a href="/activity-log?category=document{% if search %}&q={{ search }}{% endif %}"
+       class="filter-tab {% if category == 'document' %}active{% endif %}">Documente</a>
+    <a href="/activity-log?category=user{% if search %}&q={{ search }}{% endif %}"
+       class="filter-tab {% if category == 'user' %}active{% endif %}">Utilizatori</a>
+</div>
+
+<!-- ── SEARCH ROW ────────────────────────────────────────────── -->
+<div class="log-search-row">
+    <form method="GET" action="/activity-log" class="search-inline">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" name="q" class="search-input" placeholder="Caută în jurnal..." value="{{ search }}">
+        <input type="hidden" name="category" value="{{ category }}">
+        {% if search %}
+        <a href="/activity-log?category={{ category }}" class="search-clear">&times;</a>
+        {% endif %}
+    </form>
+    <span class="page-info">{{ total }} rezultate</span>
+</div>
+
+<!-- ── TABLE CARD ─────────────────────────────────────────────── -->
+<div class="table-card">
+    <div class="tc-header">
+        <div class="tc-header-left">
+            <span class="tc-title">Activitate Recentă</span>
+        </div>
+    </div>
+
+    {% if logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>Acțiune</th>
+                <th>Utilizator</th>
+                <th>Categorie</th>
+                <th>IP</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr class="log-row">
+                <!-- Action + Icon -->
+                <td>
+                    <div class="log-cell-main">
+                        <div class="log-icon log-icon-{{ log.category }}">
+                            {{ cat_icons.get(log.category, '📋') }}
+                        </div>
+                        <div>
+                            <div class="log-details">{{ log.details }}</div>
+                            <div class="log-time">{{ log.created_at.strftime('%d %b %Y, %H:%M') }}</div>
+                        </div>
+                    </div>
+                </td>
+
+                <!-- Username -->
+                <td>
+                    <div class="log-user">
+                        <div class="user-avatar user-avatar-sm">{{ log.username[0].upper() }}</div>
+                        <span class="td-strong">{{ log.username }}</span>
+                    </div>
+                </td>
+
+                <!-- Category badge -->
+                <td>
+                    <span class="badge {{ cat_badge.get(log.category, 'badge-neutral') }}">
+                        {{ cat_labels.get(log.category, log.category) }}
+                    </span>
+                </td>
+
+                <!-- IP Address -->
+                <td>
+                    <span class="text-muted-xs">{{ log.ip_address or '—' }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- ── PAGINATION ────────────────────────────────────────── -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        <a href="/activity-log?category={{ category }}&q={{ search }}&page={{ page - 1 }}"
+           class="btn btn-ghost btn-sm page-btn {% if page <= 1 %}disabled{% endif %}">
+            ← Anterior
+        </a>
+        <span class="page-info">Pagina {{ page }} din {{ total_pages }}</span>
+        <a href="/activity-log?category={{ category }}&q={{ search }}&page={{ page + 1 }}"
+           class="btn btn-ghost btn-sm page-btn {% if page >= total_pages %}disabled{% endif %}">
+            Următor →
+        </a>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- ── EMPTY STATE ───────────────────────────────────────── -->
+    <div class="empty-state">
+        <div class="empty-state-icon-sm">📋</div>
+        <p class="empty-state-sub">
+            {% if search %}
+                Nicio înregistrare găsită pentru „{{ search }}"
+            {% elif category != 'all' %}
+                Nicio activitate în categoria selectată
+            {% else %}
+                Nicio activitate înregistrată deocamdată
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
