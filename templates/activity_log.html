@@ -92,7 +92,7 @@
             {% for log in logs %}
             <tr class="log-row">
                 <!-- Action + Icon -->
-                <td>
+                <td data-label="Acțiune">
                     <div class="log-cell-main">
                         <div class="log-icon log-icon-{{ log.category }}">
                             {{ cat_icons.get(log.category, '📋') }}
@@ -105,7 +105,7 @@
                 </td>
 
                 <!-- Username -->
-                <td>
+                <td data-label="Utilizator">
                     <div class="log-user">
                         <div class="user-avatar user-avatar-sm">{{ log.username[0].upper() }}</div>
                         <span class="td-strong">{{ log.username }}</span>
@@ -113,14 +113,14 @@
                 </td>
 
                 <!-- Category badge -->
-                <td>
+                <td data-label="Categorie">
                     <span class="badge {{ cat_badge.get(log.category, 'badge-neutral') }}">
                         {{ cat_labels.get(log.category, log.category) }}
                     </span>
                 </td>
 
                 <!-- IP Address -->
-                <td>
+                <td data-label="IP">
                     <span class="text-muted-xs">{{ log.ip_address or '—' }}</span>
                 </td>
             </tr>

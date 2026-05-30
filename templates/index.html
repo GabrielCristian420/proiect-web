@@ -126,13 +126,21 @@
 
         <!-- PROPERTIES -->
         <div class="section-header">
-            <div class="section-title">Toate Proprietatile</div>
-            <div class="pill">{{ total }} unitati</div>
+            <div>
+                <div class="section-title">Toate Proprietatile</div>
+                <div class="pill">{{ total }} unitati</div>
+            </div>
+            <a href="/apartments/add" class="btn btn-gold btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                Adauga apartament
+            </a>
         </div>
         <div class="apt-grid">
             <!-- Loop: afiseaza fiecare proprietate ca un card (ocupata sau disponibila) -->
             {% for apt in apartments %}
-            <div class="apt-card">
+            <a class="apt-card apt-card-link" href="/apartments/{{ apt.id }}">
                 <div class="apt-card-top">
                     <div>
                         <div class="apt-number">Unitate {{ apt.number }}</div>
@@ -161,15 +169,10 @@
                     {% else %}
                         <div class="tenant-info-label">Disponibilitate</div>
                         <div class="tenant-info-empty">Gata pentru mutare</div>
-                        <a href="/add_tenant?apt={{ apt.id }}" class="btn btn-gold btn-sm" style="margin-top:12px;">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
-                                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                            </svg>
-                            Adauga chirias
-                        </a>
+                        <div class="tenant-info-link">Deschide detalii</div>
                     {% endif %}
                 </div>
-            </div>
+            </a>
             {% endfor %}
         </div>
     </div>

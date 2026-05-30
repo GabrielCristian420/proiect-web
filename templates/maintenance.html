@@ -81,9 +81,9 @@
                 <!-- Loop: afiseaza fiecare tichet cu detalii si actiuni -->
                 {% for t in tickets %}
                 <tr>
-                    <td><span class="td-strong">{{ t.number }}</span></td>
-                    <td><span class="td-em">{{ t.description }}</span></td>
-                    <td>
+                    <td data-label="Unitate"><span class="td-strong">{{ t.number }}</span></td>
+                    <td data-label="Problema"><span class="td-em">{{ t.description }}</span></td>
+                    <td data-label="Prioritate">
                         {% if t.priority == 'High' %}
                             <span class="badge badge-high">Ridicata</span>
                         {% elif t.priority == 'Medium' %}
@@ -92,7 +92,7 @@
                             <span class="badge badge-low">Scazuta</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="Status">
                         {% if t.status == 'Open' %}
                             <span class="badge badge-open">Deschis</span>
                         {% elif t.status == 'In Progress' %}
@@ -101,15 +101,15 @@
                             <span class="badge badge-resolved">Rezolvat</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="Cost">
                         {% if t.cost and t.cost > 0 %}
                             <span class="td-strong">{{ "%.0f"|format(t.cost) }} RON</span>
                         {% else %}
                             <span class="td-muted">—</span>
                         {% endif %}
                     </td>
-                    <td class="td-date">{{ t.created_at or '—' }}</td>
-                    <td>
+                    <td data-label="Data" class="td-date">{{ t.created_at or '—' }}</td>
+                    <td data-label="Actiuni">
                         <div class="flex-actions">
                         <!-- Actiuni conditionale: Preia (Open), Rezolvat+cost (In Progress), Update cost (Resolved) -->
                         {% if t.status == 'Open' %}

@@ -120,6 +120,8 @@
                 {% if request.path == '/' %}Dashboard
                 {% elif request.path == '/tenants' %}Chiriasi
                 {% elif request.path == '/add_tenant' %}Adauga Chirias
+                {% elif request.path == '/apartments/add' %}Adauga Apartament
+                {% elif '/apartments/' in request.path %}Detalii Apartament
                 {% elif request.path == '/facturi' %}Gestiune Facturi
                 {% elif request.path == '/maintenance' %}Mentenanta
                 {% elif request.path == '/activity-log' %}Jurnal Activitate
@@ -129,7 +131,7 @@
                 {% elif '/acte' in request.path %}Acte Chirias
                 {% else %}RentManager{% endif %}
             </div>
-            {% if '/acte' in request.path or '/edit_tenant' in request.path or '/edit_factura' in request.path %}
+            {% if '/acte' in request.path or '/edit_tenant' in request.path or '/edit_factura' in request.path or '/apartments/' in request.path %}
             <div class="breadcrumbs">
                 {% if '/acte' in request.path %}
                     <a href="/tenants">Chiriasi</a> <span class="bc-sep">/</span> <span>Acte</span>
@@ -137,6 +139,8 @@
                     <a href="/tenants">Chiriasi</a> <span class="bc-sep">/</span> <span>Editeaza</span>
                 {% elif '/edit_factura' in request.path %}
                     <a href="/facturi">Facturi</a> <span class="bc-sep">/</span> <span>Editeaza</span>
+                {% elif '/apartments/' in request.path %}
+                    <a href="/">Dashboard</a> <span class="bc-sep">/</span> <span>Apartament</span>
                 {% endif %}
             </div>
             {% endif %}

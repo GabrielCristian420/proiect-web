@@ -56,6 +56,10 @@ CREATE TABLE IF NOT EXISTS tenants (
     email        TEXT NOT NULL,
     phone        TEXT,
     apartment_id INTEGER NOT NULL REFERENCES apartments(id),
+    is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+    contract_start DATE,
+    contract_end DATE,
+    rent_amount  REAL,
     created_at   DATE DEFAULT CURRENT_DATE
 );
 """)
@@ -68,6 +72,7 @@ CREATE TABLE IF NOT EXISTS maintenance (
     description  TEXT NOT NULL,
     priority     TEXT NOT NULL DEFAULT 'Medium',
     status       TEXT NOT NULL DEFAULT 'Open',
+    cost         REAL DEFAULT 0,
     created_at   DATE DEFAULT CURRENT_DATE
 );
 """)
@@ -90,13 +95,30 @@ c.execute("""
 CREATE TABLE IF NOT EXISTS facturi (
     id          SERIAL PRIMARY KEY,
     tenant_id   INTEGER NOT NULL REFERENCES tenants(id),
+    apartment_id INTEGER REFERENCES apartments(id),
     amount      REAL NOT NULL,
     description TEXT NOT NULL DEFAULT 'Chirie lunara',
     due_date    DATE NOT NULL,
     status      TEXT NOT NULL DEFAULT 'Unpaid',
     paid_at     DATE,
+    invoice_number TEXT,
     created_at  DATE DEFAULT CURRENT_DATE
 );
+""")
+
+# Migratii mici pentru baze existente create cu versiuni mai vechi
+c.execute("ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;")
+c.execute("ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS contract_start DATE;")
+c.execute("ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS contract_end DATE;")
+c.execute("ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS rent_amount REAL;")
+c.execute("ALTER TABLE IF EXISTS maintenance ADD COLUMN IF NOT EXISTS cost REAL DEFAULT 0;")
+c.execute("ALTER TABLE IF EXISTS facturi ADD COLUMN IF NOT EXISTS apartment_id INTEGER REFERENCES apartments(id);")
+c.execute("ALTER TABLE IF EXISTS facturi ADD COLUMN IF NOT EXISTS invoice_number TEXT;")
+c.execute("""
+    UPDATE facturi f
+    SET apartment_id = t.apartment_id
+    FROM tenants t
+    WHERE f.tenant_id = t.id AND f.apartment_id IS NULL;
 """)
 
 # Tabelul activity_log — jurnal de activitate (audit trail)
@@ -119,6 +141,9 @@ CREATE TABLE IF NOT EXISTS activity_log (
 # Indexuri pt performanta la filtrare si sortare
 c.execute("CREATE INDEX IF NOT EXISTS idx_activity_log_category ON activity_log(category);")
 c.execute("CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at DESC);")
+c.execute("CREATE INDEX IF NOT EXISTS idx_facturi_apartment_id ON facturi(apartment_id);")
+c.execute("CREATE INDEX IF NOT EXISTS idx_tenants_apartment_id ON tenants(apartment_id);")
+c.execute("CREATE INDEX IF NOT EXISTS idx_maintenance_apartment_id ON maintenance(apartment_id);")
 
 print("✅ Tabele create.")
 
@@ -152,9 +177,9 @@ if c.fetchone()[0] == 0:
         VALUES (1, 'Geam spart la bucatarie', 'High'), (2, 'Bec ars la baie', 'Low')
     """)
     c.execute("""
-        INSERT INTO facturi (tenant_id, amount, description, due_date, status)
-        VALUES (1, 1500.00, 'Chirie lunara - Aprilie 2025', '2025-04-01', 'Unpaid'),
-               (1, 1500.00, 'Chirie lunara - Martie 2025',  '2025-03-01', 'Paid')
+        INSERT INTO facturi (tenant_id, apartment_id, amount, description, due_date, status)
+        VALUES (1, 1, 1500.00, 'Chirie lunara - Aprilie 2025', '2025-04-01', 'Unpaid'),
+               (1, 1, 1500.00, 'Chirie lunara - Martie 2025',  '2025-03-01', 'Paid')
     """)
     print("✅ Date de test adaugate.")
 

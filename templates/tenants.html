@@ -47,37 +47,37 @@
             <!-- Loop: afiseaza fiecare chirias cu detalii si actiuni (editare/eliberare) -->
             {% for t in tenants %}
             <tr {% if not t.is_active %}style="opacity: 0.5;"{% endif %}>
-                <td>
+                <td data-label="Nume">
                     <div class="td-strong">{{ t.first_name }} {{ t.last_name }}</div>
                     {% if not t.is_active %}<span class="badge badge-neutral badge-sm">Inactiv</span>{% endif %}
                 </td>
-                <td>
+                <td data-label="Contact">
                     <div class="td-email">{{ t.email }}</div>
                     {% if t.phone %}<div class="td-sub">{{ t.phone }}</div>{% endif %}
                 </td>
-                <td><span class="badge badge-neutral">Unitate {{ t.number }}</span></td>
-                <td>
+                <td data-label="Unitate"><span class="badge badge-neutral">Unitate {{ t.number }}</span></td>
+                <td data-label="Contract">
                     {% if t.contract_end %}
                         <div class="td-date">Pana la {{ t.contract_end }}</div>
                     {% else %}
                         <div class="td-muted">—</div>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="Chirie">
                     {% if t.rent_amount %}
                         <div class="td-strong">{{ "%.0f"|format(t.rent_amount) }} RON</div>
                     {% else %}
                         <div class="td-muted">—</div>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="Facturi">
                     {% if t.unpaid > 0 %}
                         <span class="badge badge-unpaid">{{ t.unpaid }} neplatit{{ 'e' if t.unpaid > 1 }}</span>
                     {% else %}
                         <span class="badge badge-paid">La zi</span>
                     {% endif %}
                 </td>
-                <td>
+                <td data-label="Acte">
                     <a href="/acte/{{ t.id }}" class="btn btn-ghost btn-sm">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -86,7 +86,7 @@
                         {{ t.nr_acte }}
                     </a>
                 </td>
-                <td>
+                <td data-label="Actiuni">
                     <div class="flex-actions">
                         {% if t.is_active %}
                         <a href="/edit_tenant/{{ t.id }}" class="btn btn-ghost btn-sm">

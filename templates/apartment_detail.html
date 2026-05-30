@@ -1,0 +1,250 @@
+{% extends "layout.html" %}
+{% block main %}
+
+<div class="detail-hero">
+    <div>
+        <div class="detail-kicker">Unitate</div>
+        <h1>Unitate {{ apartment.number }}</h1>
+        <div class="detail-address">{{ apartment.address }}</div>
+    </div>
+    <div class="detail-actions">
+        {% if apartment.status == 'Available' %}
+            <span class="badge badge-available">Disponibila</span>
+        {% else %}
+            <span class="badge badge-rented">Inchiriata</span>
+        {% endif %}
+        {% if apartment.status == 'Available' %}
+        <a href="/add_tenant?apt={{ apartment.id }}" class="btn btn-gold btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Adauga chirias
+        </a>
+        {% elif active_tenant %}
+        <a href="/facturi?tenant={{ active_tenant.id }}" class="btn btn-gold btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+            </svg>
+            Factura noua
+        </a>
+        {% endif %}
+        <a href="/maintenance?apt={{ apartment.id }}" class="btn btn-ghost btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+            Tichet nou
+        </a>
+    </div>
+</div>
+
+<div class="detail-summary-grid">
+    <div class="mini-stat">
+        <div class="mini-label">Chirias activ</div>
+        <div class="mini-value">{{ active_tenant.first_name ~ ' ' ~ active_tenant.last_name if active_tenant else 'Liber' }}</div>
+    </div>
+    <div class="mini-stat">
+        <div class="mini-label">Restante</div>
+        <div class="mini-value danger">{{ "%.0f"|format(total_unpaid) }} RON</div>
+    </div>
+    <div class="mini-stat">
+        <div class="mini-label">Incasat istoric</div>
+        <div class="mini-value success">{{ "%.0f"|format(total_paid) }} RON</div>
+    </div>
+    <div class="mini-stat">
+        <div class="mini-label">Tichete deschise</div>
+        <div class="mini-value">{{ open_tickets }}</div>
+    </div>
+</div>
+
+<div class="detail-grid">
+    <div class="table-card">
+        <div class="tc-header">
+            <div class="tc-header-left">
+                <div class="tc-title">Chiriasi</div>
+                <div class="pill">{{ tenants_history|length }} total</div>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nume</th>
+                    <th>Contact</th>
+                    <th>Contract</th>
+                    <th>Status</th>
+                    <th>Actiuni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in tenants_history %}
+                <tr>
+                    <td data-label="Nume">
+                        <div class="td-strong">{{ t.first_name }} {{ t.last_name }}</div>
+                        <div class="td-sub">Chirie: {{ "%.0f"|format(t.rent_amount) if t.rent_amount else '-' }} RON</div>
+                    </td>
+                    <td data-label="Contact">
+                        <div class="text-sm">{{ t.email }}</div>
+                        <div class="td-sub">{{ t.phone or '-' }}</div>
+                    </td>
+                    <td data-label="Contract">
+                        <div class="text-sm">{{ t.contract_start or '-' }}</div>
+                        <div class="td-sub">pana la {{ t.contract_end or '-' }}</div>
+                    </td>
+                    <td data-label="Status">
+                        {% if t.is_active %}
+                            <span class="badge badge-rented">Activ</span>
+                        {% else %}
+                            <span class="badge badge-neutral">Fost chirias</span>
+                        {% endif %}
+                    </td>
+                    <td data-label="Actiuni">
+                        <div class="flex-actions">
+                            <a href="/edit_tenant/{{ t.id }}" class="btn-icon-only" title="Editeaza chirias">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                            </a>
+                            <a href="/acte/{{ t.id }}" class="btn-icon-only" title="Acte chirias">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                                </svg>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr class="empty-row">
+                    <td colspan="5">Nu exista chiriasi in istoricul acestei unitati.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="table-card">
+        <div class="tc-header">
+            <div class="tc-header-left">
+                <div class="tc-title">Facturi</div>
+                <div class="pill">{{ bills|length }} total</div>
+            </div>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Nr.</th>
+                    <th>Chirias</th>
+                    <th>Descriere</th>
+                    <th>Suma</th>
+                    <th>Status</th>
+                    <th>Actiuni</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for bill in bills %}
+                <tr>
+                    <td data-label="Nr.">
+                        <div class="td-sub td-nowrap">{{ bill.invoice_number or '#%04d'|format(bill.id) }}</div>
+                        <div class="td-sub td-nowrap">{{ bill.due_date }}</div>
+                    </td>
+                    <td data-label="Chirias">
+                        <div class="td-strong">{{ bill.first_name }} {{ bill.last_name }}</div>
+                        {% if not bill.is_active %}<div class="td-sub">fost chirias</div>{% endif %}
+                    </td>
+                    <td data-label="Descriere" class="td-em">{{ bill.description }}</td>
+                    <td data-label="Suma"><div class="td-strong">{{ "%.2f"|format(bill.amount) }} RON</div></td>
+                    <td data-label="Status">
+                        {% if bill.status == 'Paid' %}
+                            <span class="badge badge-paid">Platit</span>
+                        {% else %}
+                            <span class="badge badge-unpaid">Neplatit</span>
+                        {% endif %}
+                    </td>
+                    <td data-label="Actiuni">
+                        <div class="flex-actions">
+                            {% if bill.status == "Unpaid" %}
+                            <form action="/facturi" method="post" class="form-inline">
+                                <input type="hidden" name="action" value="pay">
+                                <input type="hidden" name="bill_id" value="{{ bill.id }}">
+                                <input type="hidden" name="return_to" value="/apartments/{{ apartment.id }}">
+                                <button type="submit" class="btn btn-success btn-sm">Platit</button>
+                            </form>
+                            {% endif %}
+                            <a href="/edit_factura/{{ bill.id }}" class="btn-icon-only" title="Editeaza factura">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                            </a>
+                            <a href="/facturi/pdf/{{ bill.id }}" class="btn-icon-only" title="Descarca PDF">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                                </svg>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr class="empty-row">
+                    <td colspan="6">Nu exista facturi pentru aceasta unitate.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="table-card mt-24">
+    <div class="tc-header">
+        <div class="tc-header-left">
+            <div class="tc-title">Mentenanta</div>
+            <div class="pill">{{ tickets|length }} total</div>
+        </div>
+        <div class="tc-header-right">
+            <span class="td-sub">Cost rezolvat: {{ "%.0f"|format(maintenance_cost) }} RON</span>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Problema</th>
+                <th>Prioritate</th>
+                <th>Status</th>
+                <th>Cost</th>
+                <th>Data</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tickets %}
+            <tr>
+                <td data-label="Problema" class="td-em">{{ t.description }}</td>
+                <td data-label="Prioritate">
+                    {% if t.priority == 'High' %}
+                        <span class="badge badge-high">Ridicata</span>
+                    {% elif t.priority == 'Medium' %}
+                        <span class="badge badge-medium">Medie</span>
+                    {% else %}
+                        <span class="badge badge-low">Scazuta</span>
+                    {% endif %}
+                </td>
+                <td data-label="Status">
+                    {% if t.status == 'Open' %}
+                        <span class="badge badge-open">Deschis</span>
+                    {% elif t.status == 'In Progress' %}
+                        <span class="badge badge-in-progress">In Lucru</span>
+                    {% else %}
+                        <span class="badge badge-resolved">Rezolvat</span>
+                    {% endif %}
+                </td>
+                <td data-label="Cost">{{ "%.0f"|format(t.cost) if t.cost else '-' }} RON</td>
+                <td data-label="Data" class="td-date">{{ t.created_at or '-' }}</td>
+            </tr>
+            {% else %}
+            <tr class="empty-row">
+                <td colspan="5">Nu exista tichete de mentenanta pentru aceasta unitate.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

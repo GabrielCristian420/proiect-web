@@ -108,29 +108,29 @@
                 <!-- Loop: afiseaza fiecare factura cu nr, chirias, suma, status -->
                 {% for bill in bills %}
                 <tr>
-                    <td><div class="td-sub">{{ bill.invoice_number or '#%04d'|format(bill.id) }}</div></td>
-                    <td>
+                    <td data-label="Nr."><div class="td-sub">{{ bill.invoice_number or '#%04d'|format(bill.id) }}</div></td>
+                    <td data-label="Chirias">
                         <div class="td-strong">{{ bill.first_name }} {{ bill.last_name }}</div>
                         <div class="td-sub">Unit {{ bill.number }}</div>
                     </td>
-                    <td class="td-em">{{ bill.description }}</td>
-                    <td>
+                    <td data-label="Descriere" class="td-em">{{ bill.description }}</td>
+                    <td data-label="Suma">
                         <div class="td-strong">RON {{ "%.2f"|format(bill.amount) }}</div>
                     </td>
-                    <td>
+                    <td data-label="Scadenta">
                         <div class="text-sm">{{ bill.due_date }}</div>
                         {% if bill.paid_at %}
                             <div class="td-sub">Platit: {{ bill.paid_at }}</div>
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="Status">
                         {% if bill.status == 'Paid' %}
                             <span class="badge badge-paid">Platit</span>
                         {% else %}
                             <span class="badge badge-unpaid">Neplatit</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td data-label="Actiuni">
                         <div class="flex-actions">
                             <!-- Actiuni: buton platit, stergere cu confirmare, editare, descarcare PDF -->
                             {% if bill.status == "Unpaid" %}

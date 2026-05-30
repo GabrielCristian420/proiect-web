@@ -83,11 +83,46 @@ def db_execute(query, *args):
         with conn:
             with conn.cursor() as cur:
                 cur.execute(query, args if args else None)
-                if query.strip().upper().startswith("SELECT"):
+                upper_query = query.strip().upper()
+                if upper_query.startswith("SELECT") or " RETURNING " in upper_query:
                     return [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
     return None
+
+
+_schema_checked = False
+
+def ensure_schema():
+    """Aplica migratii mici necesare pentru instalari deja existente."""
+    db_execute("ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE")
+    db_execute("ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS contract_start DATE")
+    db_execute("ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS contract_end DATE")
+    db_execute("ALTER TABLE IF EXISTS tenants ADD COLUMN IF NOT EXISTS rent_amount REAL")
+    db_execute("ALTER TABLE IF EXISTS maintenance ADD COLUMN IF NOT EXISTS cost REAL DEFAULT 0")
+    db_execute("ALTER TABLE IF EXISTS facturi ADD COLUMN IF NOT EXISTS invoice_number TEXT")
+    db_execute("ALTER TABLE IF EXISTS facturi ADD COLUMN IF NOT EXISTS apartment_id INTEGER REFERENCES apartments(id)")
+    db_execute("""
+        UPDATE facturi f
+        SET apartment_id = t.apartment_id
+        FROM tenants t
+        WHERE f.tenant_id = t.id AND f.apartment_id IS NULL
+    """)
+    db_execute("CREATE INDEX IF NOT EXISTS idx_facturi_apartment_id ON facturi(apartment_id)")
+    db_execute("CREATE INDEX IF NOT EXISTS idx_tenants_apartment_id ON tenants(apartment_id)")
+    db_execute("CREATE INDEX IF NOT EXISTS idx_maintenance_apartment_id ON maintenance(apartment_id)")
+
+
+@app.before_request
+def run_schema_check():
+    global _schema_checked
+    if _schema_checked:
+        return
+    try:
+        ensure_schema()
+        _schema_checked = True
+    except Exception as exc:
+        app.logger.warning("Schema migration skipped: %s", exc)
 
 
 # =============================================================================
@@ -260,16 +295,17 @@ def settings():
 @login_required
 def index():
     """Dashboard-ul principal — statistici, grafic, alerte, unitati."""
-    # Interogare complexa: apartamente + chirias activ + nr facturi neplatite + tichete deschise
+    # Interogare complexa: apartamente + chirias activ + restante/tichete pe unitate
     apartments = db_execute("""
         SELECT a.id, a.number, a.address, a.status,
                t.first_name, t.last_name, t.id AS tenant_id,
                t.contract_end,
-               (SELECT COUNT(*) FROM facturi f WHERE f.tenant_id = t.id AND f.status = 'Unpaid') AS unpaid_count,
-               (SELECT COALESCE(SUM(f2.amount), 0) FROM facturi f2 WHERE f2.tenant_id = t.id AND f2.status = 'Unpaid') AS unpaid_amount,
+               (SELECT COUNT(*) FROM facturi f WHERE f.apartment_id = a.id AND f.status = 'Unpaid') AS unpaid_count,
+               (SELECT COALESCE(SUM(f2.amount), 0) FROM facturi f2 WHERE f2.apartment_id = a.id AND f2.status = 'Unpaid') AS unpaid_amount,
                (SELECT COUNT(*) FROM maintenance m WHERE m.apartment_id = a.id AND m.status != 'Resolved') AS open_maint
         FROM apartments a
         LEFT JOIN tenants t ON a.id = t.apartment_id AND t.is_active = TRUE
+        ORDER BY a.number
     """)
     total    = len(apartments)
     occupied = sum(1 for a in apartments if a["status"] == "Rented")
@@ -339,6 +375,99 @@ def index():
 
 
 # =============================================================================
+# APARTAMENTE (Detalii + Adaugare unitati)
+# =============================================================================
+
+@app.route("/apartments/add", methods=["GET", "POST"])
+@login_required
+def add_apartment():
+    """Formular adaugare apartament nou din aplicatie."""
+    if request.method == "POST":
+        number = request.form.get("number", "").strip()
+        address = request.form.get("address", "").strip()
+        if not number or not address:
+            flash("error|Completeaza numarul unitatii si adresa.")
+            return redirect("/apartments/add")
+
+        existing = db_execute("""
+            SELECT id FROM apartments
+            WHERE LOWER(number) = LOWER(%s) AND LOWER(address) = LOWER(%s)
+            LIMIT 1
+        """, number, address)
+        if existing:
+            flash("error|Exista deja un apartament cu acest numar la adresa introdusa.")
+            return redirect("/apartments/add")
+
+        inserted = db_execute("""
+            INSERT INTO apartments (number, address, status)
+            VALUES (%s, %s, 'Available')
+            RETURNING id
+        """, number, address)
+        apt_id = inserted[0]["id"] if inserted else None
+        log_activity("create", "apartment", f"A adaugat Unitatea {number} - {address}", "apartment", apt_id)
+        flash(f"success|Apartamentul {number} a fost adaugat.")
+        return redirect(f"/apartments/{apt_id}" if apt_id else "/")
+
+    return render_template("add_apartment.html")
+
+
+@app.route("/apartments/<int:apt_id>")
+@login_required
+def apartment_detail(apt_id):
+    """Pagina detalii apartament: chiriasi, facturi si tichete istorice."""
+    rows = db_execute("SELECT * FROM apartments WHERE id = %s", apt_id)
+    if not rows:
+        flash("error|Apartamentul nu a fost gasit.")
+        return redirect("/")
+    apartment = rows[0]
+
+    tenants_history = db_execute("""
+        SELECT DISTINCT t.id, t.first_name, t.last_name, t.email, t.phone,
+               t.is_active, t.contract_start, t.contract_end, t.rent_amount, t.created_at
+        FROM tenants t
+        LEFT JOIN facturi f ON f.tenant_id = t.id
+        WHERE t.apartment_id = %s OR f.apartment_id = %s
+        ORDER BY t.is_active DESC, t.created_at DESC, t.id DESC
+    """, apt_id, apt_id)
+
+    bills = db_execute("""
+        SELECT f.id, f.amount, f.description, f.due_date, f.status, f.paid_at,
+               f.created_at, f.invoice_number,
+               t.id AS tenant_id, t.first_name, t.last_name, t.is_active
+        FROM facturi f
+        LEFT JOIN tenants t ON f.tenant_id = t.id
+        WHERE f.apartment_id = %s
+        ORDER BY f.status ASC, f.due_date DESC, f.id DESC
+    """, apt_id)
+
+    tickets = db_execute("""
+        SELECT id, description, priority, status, created_at, cost
+        FROM maintenance
+        WHERE apartment_id = %s
+        ORDER BY CASE status WHEN 'Open' THEN 1 WHEN 'In Progress' THEN 2 ELSE 3 END,
+                 created_at DESC, id DESC
+    """, apt_id)
+
+    active_tenant = next((t for t in tenants_history if t["is_active"]), None)
+    total_unpaid = sum(float(b["amount"] or 0) for b in bills if b["status"] == "Unpaid")
+    total_paid = sum(float(b["amount"] or 0) for b in bills if b["status"] == "Paid")
+    open_tickets = sum(1 for t in tickets if t["status"] != "Resolved")
+    maintenance_cost = sum(float(t["cost"] or 0) for t in tickets if t["status"] == "Resolved")
+
+    return render_template("apartment_detail.html",
+        apartment=apartment,
+        active_tenant=active_tenant,
+        tenants_history=tenants_history,
+        bills=bills,
+        tickets=tickets,
+        total_unpaid=total_unpaid,
+        total_paid=total_paid,
+        open_tickets=open_tickets,
+        maintenance_cost=maintenance_cost
+    )
+
+
+# =============================================================================
 # GENERARE FACTURI IN MASA (Bulk Invoice)
 # =============================================================================
 
@@ -347,7 +476,7 @@ def index():
 def bulk_invoice():
     """Genereaza facturi automat pt toti chiriasii activi cu chiria setata."""
     tenants_with_rent = db_execute("""
-        SELECT t.id, t.first_name, t.last_name, t.rent_amount, t.email, a.number
+        SELECT t.id, t.first_name, t.last_name, t.rent_amount, t.email, t.apartment_id, a.number
         FROM tenants t JOIN apartments a ON t.apartment_id = a.id
         WHERE t.is_active = TRUE AND t.rent_amount IS NOT NULL AND t.rent_amount > 0
     """)
@@ -369,8 +498,8 @@ def bulk_invoice():
         invoice_number = f"RM-{year}-{last + 1:03d}"
         due_date = date.today().replace(day=28).isoformat() if date.today().day <= 28 else date.today().isoformat()
         db_execute(
-            "INSERT INTO facturi (tenant_id, amount, description, due_date, status, invoice_number) VALUES (%s, %s, %s, %s, 'Unpaid', %s)",
-            t["id"], t["rent_amount"], f"Chirie lunara - {month_name}", due_date, invoice_number
+            "INSERT INTO facturi (tenant_id, apartment_id, amount, description, due_date, status, invoice_number) VALUES (%s, %s, %s, %s, %s, 'Unpaid', %s)",
+            t["id"], t["apartment_id"], t["rent_amount"], f"Chirie lunara - {month_name}", due_date, invoice_number
         )
         send_email(t["email"], f"Factura noua {invoice_number}",
             f"Buna ziua {t['first_name']},\n\nAi o factura noua ({invoice_number}) de {t['rent_amount']} RON.\nData scadenta: {due_date}.\n\nRentManager")
@@ -548,7 +677,7 @@ def edit_factura(bill_id):
     bill = db_execute("""
         SELECT f.*, t.first_name, t.last_name, a.number
         FROM facturi f JOIN tenants t ON f.tenant_id = t.id
-        JOIN apartments a ON t.apartment_id = a.id WHERE f.id = %s
+        LEFT JOIN apartments a ON f.apartment_id = a.id WHERE f.id = %s
     """, bill_id)
     if not bill:
         flash("error|Factura nu a fost gasita.")
@@ -678,6 +807,7 @@ def facturi():
     """Gestionare facturi: creare, marcare platita, stergere, filtrare."""
     if request.method == "POST":
         action = request.form.get("action", "create")
+        return_to = request.form.get("return_to") or "/facturi"
 
         # ── Marcare factura ca platita ──
         if action == "pay":
@@ -686,7 +816,7 @@ def facturi():
                        date.today().isoformat(), bill_id)
             log_activity("pay", "factura", f"A marcat factura #{bill_id} ca platita", "factura", int(bill_id))
             flash("success|Factura marcata ca platita.")
-            return redirect("/facturi")
+            return redirect(return_to)
 
         # ── Stergere factura ──
         if action == "delete":
@@ -694,7 +824,7 @@ def facturi():
             log_activity("delete", "factura", f"A sters factura #{bill_id}", "factura", int(bill_id))
             db_execute("DELETE FROM facturi WHERE id = %s", bill_id)
             flash("success|Factura stearsa.")
-            return redirect("/facturi")
+            return redirect(return_to)
 
         # ── Creare factura noua ──
         tenant_id   = request.form.get("tenant_id")
@@ -703,41 +833,45 @@ def facturi():
         due_date    = request.form.get("due_date")
         if not tenant_id or not amount or not due_date:
             flash("error|Completeaza toate campurile obligatorii.")
-            return redirect("/facturi")
+            return redirect(return_to)
         if float(amount) < 0:
             flash("error|Suma nu poate fi negativa.")
-            return redirect("/facturi")
+            return redirect(return_to)
         if due_date < date.today().isoformat():
             flash("error|Data scadentă nu poate fi în trecut.")
-            return redirect("/facturi")
+            return redirect(return_to)
 
         # Generare numar factura secvential (RM-2026-001)
         year = date.today().year
         last = db_execute("SELECT COUNT(*) AS cnt FROM facturi WHERE EXTRACT(YEAR FROM created_at) = %s", year)[0]["cnt"]
         invoice_number = f"RM-{year}-{last + 1:03d}"
-        db_execute("INSERT INTO facturi (tenant_id, amount, description, due_date, status, invoice_number) VALUES (%s, %s, %s, %s, 'Unpaid', %s)",
-                   tenant_id, amount, description, due_date, invoice_number)
-
-        # Trimite email chiriasuluinotificare
         t = db_execute("""
-            SELECT t.email, t.first_name, a.number FROM tenants t
+            SELECT t.email, t.first_name, t.apartment_id, a.number FROM tenants t
             JOIN apartments a ON t.apartment_id = a.id WHERE t.id = %s
         """, tenant_id)
-        if t:
-            send_email(t[0]["email"], f"Factura noua {invoice_number} - {description}",
-                f"Buna ziua {t[0]['first_name']},\n\nAi o factura noua ({invoice_number}) de {amount} RON.\nData scadenta: {due_date}.\n\nRentManager")
+        if not t:
+            flash("error|Chiriasul selectat nu a fost gasit.")
+            return redirect(return_to)
+
+        db_execute("INSERT INTO facturi (tenant_id, apartment_id, amount, description, due_date, status, invoice_number) VALUES (%s, %s, %s, %s, %s, 'Unpaid', %s)",
+                   tenant_id, t[0]["apartment_id"], amount, description, due_date, invoice_number)
+
+        # Trimite email chiriasuluinotificare
+        send_email(t[0]["email"], f"Factura noua {invoice_number} - {description}",
+            f"Buna ziua {t[0]['first_name']},\n\nAi o factura noua ({invoice_number}) de {amount} RON.\nData scadenta: {due_date}.\n\nRentManager")
 
         log_activity("create", "factura", f"A creat factura {invoice_number} de {amount} RON", "factura")
         flash(f"success|Factura {invoice_number} creata!")
-        return redirect("/facturi")
+        return redirect(return_to)
 
     # GET — lista facturi cu filtre
     status_filter = request.args.get("status", "all")
+    preselect_tenant = request.args.get("tenant")
     base_query = """
         SELECT f.id, f.amount, f.description, f.due_date, f.status, f.paid_at, f.invoice_number,
                t.id AS tenant_id, t.first_name, t.last_name, a.number
         FROM facturi f JOIN tenants t ON f.tenant_id = t.id
-        JOIN apartments a ON t.apartment_id = a.id
+        LEFT JOIN apartments a ON f.apartment_id = a.id
     """
     if status_filter == "unpaid":
         base_query += " WHERE f.status = 'Unpaid'"
@@ -757,7 +891,8 @@ def facturi():
     return render_template("facturi.html",
         bills=bills, tenants=tenants_list,
         today=today, total_unpaid=total_unpaid, total_paid=total_paid,
-        pdf_available=PDF_AVAILABLE, status_filter=status_filter)
+        pdf_available=PDF_AVAILABLE, status_filter=status_filter,
+        preselect_tenant=preselect_tenant)
 
 
 @app.route("/facturi/pdf/<int:bill_id>")
@@ -770,7 +905,7 @@ def export_factura_pdf(bill_id):
     bill = db_execute("""
         SELECT f.*, t.first_name, t.last_name, t.email, t.phone, a.number, a.address
         FROM facturi f JOIN tenants t ON f.tenant_id = t.id
-        JOIN apartments a ON t.apartment_id = a.id WHERE f.id = %s
+        LEFT JOIN apartments a ON f.apartment_id = a.id WHERE f.id = %s
     """, bill_id)
     if not bill:
         abort(404)
@@ -832,6 +967,7 @@ def maintenance():
     """Gestionare tichete mentenanta: creare, preluare, rezolvare."""
     if request.method == "POST":
         action = request.form.get("action", "create")
+        return_to = request.form.get("return_to") or "/maintenance"
 
         # ── Rezolvare tichet ──
         if action == "resolve":
@@ -840,7 +976,7 @@ def maintenance():
             db_execute("UPDATE maintenance SET status='Resolved', cost=%s WHERE id=%s", cost or 0, ticket_id)
             log_activity("resolve", "maintenance", f"A rezolvat tichetul #{ticket_id} (cost: {cost} RON)", "maintenance", int(ticket_id))
             flash("success|Tichetul a fost rezolvat.")
-            return redirect("/maintenance")
+            return redirect(return_to)
 
         # ── Preluare tichet (In Progress) ──
         if action == "in_progress":
@@ -848,7 +984,7 @@ def maintenance():
             db_execute("UPDATE maintenance SET status='In Progress' WHERE id=%s", ticket_id)
             log_activity("in_progress", "maintenance", f"A preluat tichetul #{ticket_id}", "maintenance", int(ticket_id))
             flash("success|Tichetul a fost preluat.")
-            return redirect("/maintenance")
+            return redirect(return_to)
 
         # ── Actualizare cost ──
         if action == "update_cost":
@@ -857,7 +993,7 @@ def maintenance():
             db_execute("UPDATE maintenance SET cost=%s WHERE id=%s", cost or 0, ticket_id)
             log_activity("update_cost", "maintenance", f"A actualizat costul tichetului #{ticket_id} la {cost} RON", "maintenance", int(ticket_id))
             flash("success|Costul a fost actualizat cu succes.")
-            return redirect("/maintenance")
+            return redirect(return_to)
 
         # ── Creare tichet nou ──
         apt_id   = request.form.get("apartment_id")
@@ -865,14 +1001,14 @@ def maintenance():
         priority = request.form.get("priority", "Medium")
         if not apt_id or not desc:
             flash("error|Completeaza toate campurile.")
-            return redirect("/maintenance")
+            return redirect(return_to)
         db_execute("INSERT INTO maintenance (apartment_id, description, priority, status) VALUES (%s, %s, %s, 'Open')",
                    apt_id, desc, priority)
         apt = db_execute("SELECT number FROM apartments WHERE id = %s", apt_id)
         apt_nr = apt[0]["number"] if apt else apt_id
         log_activity("create", "maintenance", f"A creat tichet mentenanta pt Unitatea {apt_nr}: {desc[:60]}", "maintenance")
         flash("success|Tichetul a fost trimis.")
-        return redirect("/maintenance")
+        return redirect(return_to)
 
     # GET — lista tichete sortate: Open > In Progress > Resolved, apoi dupa prioritate
     tickets    = db_execute("""
@@ -882,7 +1018,8 @@ def maintenance():
                  CASE m.priority WHEN 'High' THEN 1 WHEN 'Medium' THEN 2 ELSE 3 END, m.id DESC
     """)
     apartments = db_execute("SELECT id, number FROM apartments")
-    return render_template("maintenance.html", tickets=tickets, apartments=apartments)
+    preselect = request.args.get("apt")
+    return render_template("maintenance.html", tickets=tickets, apartments=apartments, preselect=preselect)
 
 
 # =============================================================================
