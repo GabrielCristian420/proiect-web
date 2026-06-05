@@ -49,7 +49,9 @@
             <tr {% if not t.is_active %}style="opacity: 0.5;"{% endif %}>
                 <td data-label="Nume">
                     <div class="td-strong">{{ t.first_name }} {{ t.last_name }}</div>
-                    {% if not t.is_active %}<span class="badge badge-neutral badge-sm">Inactiv</span>{% endif %}
+                    {% if not t.is_active %}<span class="badge badge-neutral badge-sm">Inactiv</span>
+                    {% elif t.contract_end and t.contract_end < now.date() %}<span class="badge badge-high badge-sm">Contract Expirat</span>
+                    {% endif %}
                 </td>
                 <td data-label="Contact">
                     <div class="td-email">{{ t.email }}</div>
@@ -58,7 +60,11 @@
                 <td data-label="Unitate"><span class="badge badge-neutral">Unitate {{ t.number }}</span></td>
                 <td data-label="Contract">
                     {% if t.contract_end %}
-                        <div class="td-date">Pana la {{ t.contract_end }}</div>
+                        {% if t.is_active and t.contract_end < now.date() %}
+                            <div class="td-date" style="color: var(--danger); font-weight: 600;">Expirat: {{ t.contract_end }}</div>
+                        {% else %}
+                            <div class="td-date">Pana la {{ t.contract_end }}</div>
+                        {% endif %}
                     {% else %}
                         <div class="td-muted">—</div>
                     {% endif %}

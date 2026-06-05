@@ -90,7 +90,9 @@
                         <div class="td-sub">pana la {{ t.contract_end or '-' }}</div>
                     </td>
                     <td data-label="Status">
-                        {% if t.is_active %}
+                        {% if t.is_active and t.contract_end and t.contract_end < now.date() %}
+                            <span class="badge badge-high">Contract Expirat</span>
+                        {% elif t.is_active %}
                             <span class="badge badge-rented">Activ</span>
                         {% else %}
                             <span class="badge badge-neutral">Fost chirias</span>
