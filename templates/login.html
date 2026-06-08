@@ -12,13 +12,18 @@
 <body>
 <div class="login-shell">
     <div class="login-card">
-        <div class="login-logo" style="display: flex; align-items: center; gap: 16px; margin-bottom: 32px;">
-            <img src="/static/logo.svg" alt="RentManager Logo" style="height: 52px; width: auto;">
-            <div class="brand-name" style="color: var(--text-h); font-size: 22px; font-weight: 700; letter-spacing: -0.02em;">RentManager</div>
+        <div class="login-logo" style="display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px;">
+            <img src="/static/logo.svg" alt="RentManager Logo" style="height: 52px; width: auto; margin-top: 4px;">
+            <div class="login-brand-block">
+                <div class="brand-name" style="color: var(--text-h); font-size: 22px; font-weight: 700; letter-spacing: -0.02em;">RentManager</div>
+                <div class="login-title">Bun venit inapoi</div>
+            </div>
         </div>
 
-        <div class="login-title">Bun venit inapoi</div>
-        <div class="login-sub">Autentifica-te pentru a accesa dashboard-ul.</div>
+        <div class="flash-error login-flash" style="margin-top: 16px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Trebuie să fii autentificat
+        </div>
 
         <!-- Mesaje flash: afiseaza erori sau confirmari dupa redirect -->
         {% with messages = get_flashed_messages() %}

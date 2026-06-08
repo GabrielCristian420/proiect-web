@@ -883,6 +883,22 @@ tbody tr:hover td { background: #f8fafc; }
     align-items: center;
     justify-content: center;
 }
+.login-logo {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+.login-brand-block {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+.login-title {
+    margin-top: 2px;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-s);
+}
 .login-card {
     background: var(--surface);
     border-radius: var(--radius);
@@ -901,6 +917,13 @@ tbody tr:hover td { background: #f8fafc; }
     font-weight: 700;
     font-size: 15px;
     margin-bottom: 28px;
+}
+
+.login-footer {
+    margin-top: 24px;
+    font-size: 13px;
+    color: var(--text-s);
+    text-align: center;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
